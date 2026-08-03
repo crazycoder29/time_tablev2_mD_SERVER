@@ -1,0 +1,41 @@
+Commands to Run the Planovate Project
+=====================================
+
+Follow these steps to run both the backend and client applications.
+
+1. Prerequisites
+----------------
+Ensure you have the following installed and running:
+- Python 3.11+
+- Node.js (v18+ / v20+)
+- MongoDB (running locally on mongodb://localhost:27017)
+
+2. Backend Server
+-----------------
+Open a terminal in the project root and run the following commands:
+
+    cd backend
+
+Activate the virtual environment:
+- On Windows (PowerShell/CMD):
+    .venv\Scripts\activate
+- On Linux/macOS:
+    source .venv/bin/activate
+
+Run the FastAPI development server:
+    uvicorn app.main:app --reload
+
+The backend will start at: http://localhost:8000
+API docs will be available at: http://localhost:8000/docs
+
+3. Frontend Client
+------------------
+Open a separate terminal in the project root and run the following commands:
+
+    cd client
+
+Start the Vite development server:
+    npm run dev
+
+The client application will start at: http://localhost:5173
+.venv\Scripts\python.exe -m uvicorn app.main:app --reload
