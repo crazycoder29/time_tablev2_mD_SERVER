@@ -1,41 +1,51 @@
-Commands to Run the Planovate Project
-=====================================
+==================================================
+        PROJECT INSTALLATION & RUN COMMANDS
+==================================================
 
-Follow these steps to run both the backend and client applications.
-
-1. Prerequisites
+1. PREREQUISITES
 ----------------
-Ensure you have the following installed and running:
 - Python 3.11+
-- Node.js (v18+ / v20+)
-- MongoDB (running locally on mongodb://localhost:27017)
+- Node.js (v18+)
+- MongoDB (Running on mongodb://localhost:27017)
 
-2. Backend Server
------------------
-Open a terminal in the project root and run the following commands:
 
-    cd backend
+2. BACKEND (FastAPI + MongoDB)
+------------------------------
+# Navigate to backend directory:
+cd backend
 
-Activate the virtual environment:
-- On Windows (PowerShell/CMD):
-    .venv\Scripts\activate
-- On Linux/macOS:
-    source .venv/bin/activate
+# Create virtual environment:
+python -m venv .venv
 
-Run the FastAPI development server:
-    uvicorn app.main:app --reload
+# Activate virtual environment:
+# Windows (PowerShell):
+.venv\Scripts\Activate.ps1
+# Windows (CMD):
+.venv\Scripts\activate.bat
+# Linux / macOS:
+source .venv/bin/activate
 
-The backend will start at: http://localhost:8000
-API docs will be available at: http://localhost:8000/docs
+# Install required packages:
+pip install -r requirements.txt
 
-3. Frontend Client
-------------------
-Open a separate terminal in the project root and run the following commands:
+# Run backend server:
+uvicorn app.main:app --reload
 
-    cd client
+# Access points:
+- API URL: http://localhost:8000
+- API Docs: http://localhost:8000/docs
 
-Start the Vite development server:
-    npm run dev
 
-The client application will start at: http://localhost:5173
-.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+3. FRONTEND (React + Vite + TailwindCSS)
+---------------------------------------
+# Navigate to client directory:
+cd client
+
+# Install required NPM packages:
+npm install
+
+# Run development server:
+npm run dev
+
+# Access point:
+- Frontend App: http://localhost:5173
