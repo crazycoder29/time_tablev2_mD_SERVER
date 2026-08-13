@@ -5,7 +5,7 @@ import Footer from "../components/Footer";
 import RoomOccupancyPreviewModal from "../components/RoomOccupancyPreviewModal";
 import { roomService, timetableService } from "../firebase/services";
 import { getAllSchedules } from "../firebase/services/schedules";
-import { DEFAULT_TIME_SLOTS } from "../utils/timetableUIHelpers";
+import { DEFAULT_TIME_SLOTS, cleanTime, fetchDynamicTimeSlots } from "../utils/timetableUIHelpers";
 import { getCourseDisplayName, getTeacherDisplayName } from "../utils/idDisplayHelpers";
 import { exportRoomOccupancyToPdf, exportRoomOccupancyToExcel, exportRoomOccupancyToPdfMobile, exportRoomOccupancyToExcelMobile } from "../utils/roomOccupancyExport";
 
@@ -94,12 +94,9 @@ const RoomOccupancy = () => {
       const uniqueFaculties = [...new Set(roomsData.map(r => r.faculty).filter(Boolean))].sort();
       setFaculties(uniqueFaculties);
 
-      // Generate default time slots
-      const generatedTimeSlots = [];
-      for (let i = 0; i < DEFAULT_TIME_SLOTS.length; i++) {
-        generatedTimeSlots.push(generateTimeSlot(i));
-      }
-      setTimeSlots(generatedTimeSlots);
+      // Fetch dynamic time slots
+      const dynamicSlots = await fetchDynamicTimeSlots(timetableService);
+      setTimeSlots(dynamicSlots);
 
     } catch (err) {
       console.error("Error loading data:", err);
@@ -160,18 +157,8 @@ const RoomOccupancy = () => {
       setSchedules(resolved);
 
       // Generate time slots based on maximum rowIndex
-      let maxRowIndex = DEFAULT_TIME_SLOTS.length - 1;
-      roomSchedules.forEach((schedule) => {
-        if (schedule.rowIndex !== undefined && schedule.rowIndex > maxRowIndex) {
-          maxRowIndex = schedule.rowIndex;
-        }
-      });
-
-      const generatedTimeSlots = [];
-      for (let i = 0; i <= maxRowIndex; i++) {
-        generatedTimeSlots.push(generateTimeSlot(i));
-      }
-      setTimeSlots(generatedTimeSlots);
+      const dynamicSlots = await fetchDynamicTimeSlots(timetableService);
+      setTimeSlots(dynamicSlots);
     } catch (err) {
       console.error("Error loading schedules for room:", err);
       setError("Failed to load schedules for the selected room.");
@@ -196,8 +183,8 @@ const RoomOccupancy = () => {
     const matches = schedules.filter((s) => {
       // Match by room document ID (roomId)
       const roomMatch = s.roomId && String(s.roomId) === String(roomId);
-      // Match by rowIndex (time slot)
-      const timeMatch = s.rowIndex === rowIndex;
+      // Match by time slot string comparison
+      const timeMatch = cleanTime(s.time) === cleanTime(timeSlots[rowIndex]);
       // Match by colIndex (day)
       const dayMatch = s.colIndex === colIndex;
       
@@ -511,19 +498,8 @@ const RoomOccupancy = () => {
                         const schedulesData = await getAllSchedules();
                         const resolved = await resolveSchedulesList(schedulesData);
                         setSchedules(resolved);
-                        
-                        // Recalculate maxRowIndex
-                        let maxRowIndex = DEFAULT_TIME_SLOTS.length - 1;
-                        schedulesData.forEach((schedule) => {
-                          if (schedule.rowIndex !== undefined && schedule.rowIndex > maxRowIndex) {
-                            maxRowIndex = schedule.rowIndex;
-                          }
-                        });
-                        const generatedTimeSlots = [];
-                        for (let i = 0; i <= maxRowIndex; i++) {
-                          generatedTimeSlots.push(generateTimeSlot(i));
-                        }
-                        setTimeSlots(generatedTimeSlots);
+                        const dynamicSlots = await fetchDynamicTimeSlots(timetableService);
+                        setTimeSlots(dynamicSlots);
                       } catch (err) {
                         console.error("Error loading all schedules:", err);
                         setError("Failed to load all schedules.");

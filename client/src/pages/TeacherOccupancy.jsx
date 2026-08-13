@@ -4,7 +4,7 @@ import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { teacherService, timetableService } from "../firebase/services";
 import { getAllSchedules } from "../firebase/services/schedules";
-import { DEFAULT_TIME_SLOTS } from "../utils/timetableUIHelpers";
+import { DEFAULT_TIME_SLOTS, cleanTime, fetchDynamicTimeSlots } from "../utils/timetableUIHelpers";
 import { getCourseDisplayName, getRoomDisplayName, fetchCoursesCache } from "../utils/idDisplayHelpers";
 import { 
   exportTeacherOccupancyToPdf, 
@@ -98,12 +98,9 @@ const TeacherOccupancy = () => {
       setFaculties(uniqueFaculties);
       setDepartments(uniqueDepartments);
 
-      // Generate default time slots
-      const generatedTimeSlots = [];
-      for (let i = 0; i < DEFAULT_TIME_SLOTS.length; i++) {
-        generatedTimeSlots.push(generateTimeSlot(i));
-      }
-      setTimeSlots(generatedTimeSlots);
+      // Fetch dynamic time slots
+      const dynamicSlots = await fetchDynamicTimeSlots(timetableService);
+      setTimeSlots(dynamicSlots);
 
       setViewMode("individual");
 
@@ -200,18 +197,8 @@ const TeacherOccupancy = () => {
       setSchedules(resolvedSchedules);
 
       // Generate time slots based on the maximum rowIndex
-      let maxRowIndex = DEFAULT_TIME_SLOTS.length - 1;
-      teacherSchedules.forEach((schedule) => {
-        if (schedule.rowIndex !== undefined && schedule.rowIndex > maxRowIndex) {
-          maxRowIndex = schedule.rowIndex;
-        }
-      });
-
-      const generatedTimeSlots = [];
-      for (let i = 0; i <= maxRowIndex; i++) {
-        generatedTimeSlots.push(generateTimeSlot(i));
-      }
-      setTimeSlots(generatedTimeSlots);
+      const dynamicSlots = await fetchDynamicTimeSlots(timetableService);
+      setTimeSlots(dynamicSlots);
     } catch (err) {
       console.error("Error loading schedules for teacher:", err);
       setError("Failed to load schedules for the selected teacher.");
@@ -237,8 +224,8 @@ const TeacherOccupancy = () => {
       // Match by teacher document ID (teacherId)
       const teacherIds = s.teacherId ? String(s.teacherId).split(',').map(id => id.trim()).filter(Boolean) : [];
       const teacherMatch = teacherIds.includes(String(teacherId));
-      // Match by rowIndex (time slot)
-      const timeMatch = s.rowIndex === rowIndex;
+      // Match by time slot string comparison
+      const timeMatch = cleanTime(s.time) === cleanTime(timeSlots[rowIndex]);
       // Match by colIndex (day)
       const dayMatch = s.colIndex === colIndex;
       
@@ -584,19 +571,8 @@ const TeacherOccupancy = () => {
                           );
 
                           setSchedules(resolvedSchedules);
-
-                          // Find maxRowIndex
-                          let maxRowIndex = DEFAULT_TIME_SLOTS.length - 1;
-                          schedulesData.forEach((schedule) => {
-                            if (schedule.rowIndex !== undefined && schedule.rowIndex > maxRowIndex) {
-                              maxRowIndex = schedule.rowIndex;
-                            }
-                          });
-                          const generatedTimeSlots = [];
-                          for (let i = 0; i <= maxRowIndex; i++) {
-                            generatedTimeSlots.push(generateTimeSlot(i));
-                          }
-                          setTimeSlots(generatedTimeSlots);
+                          const dynamicSlots = await fetchDynamicTimeSlots(timetableService);
+                          setTimeSlots(dynamicSlots);
                         } catch (err) {
                           console.error("Error loading all schedules:", err);
                           setError("Failed to load all schedules.");

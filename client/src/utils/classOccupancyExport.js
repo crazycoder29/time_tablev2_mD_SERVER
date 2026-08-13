@@ -6,6 +6,8 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 
+const cleanTime = (t) => String(t || "").replace(/\s+/g, "").trim();
+
 /**
  * Helper function to format class with type
  * Hides "Full Time" but shows "Part Time" and other types
@@ -92,7 +94,7 @@ function buildAllClassesOccupancyGrid(classes, schedules, timeSlots) {
           
           timeSlots.forEach((slot, rowIndex) => {
             const matches = group.schedules.filter((s) => {
-              return s.rowIndex === rowIndex && s.colIndex === colIndex;
+              return cleanTime(s.time) === cleanTime(slot) && s.colIndex === colIndex;
             });
             
             if (matches.length === 0) {
@@ -180,7 +182,7 @@ function buildSingleDayClassOccupancyGrid(day, classes, schedules, timeSlots) {
         
         timeSlots.forEach((slot, rowIndex) => {
           const matches = group.schedules.filter((s) => {
-            return s.rowIndex === rowIndex && s.colIndex === colIndex;
+            return cleanTime(s.time) === cleanTime(slot) && s.colIndex === colIndex;
           });
           
           if (matches.length === 0) {
@@ -541,7 +543,7 @@ function buildMobileClassesOccupancyGrid(classes, schedules, timeSlots) {
           
           timeSlots.forEach((slot, rowIndex) => {
             const matches = group.schedules.filter((s) => {
-              return s.rowIndex === rowIndex && s.colIndex === colIndex;
+              return cleanTime(s.time) === cleanTime(slot) && s.colIndex === colIndex;
             });
             
             if (matches.length === 0) {
@@ -651,7 +653,7 @@ function buildMobileSingleDayClassesOccupancyGrid(day, classes, schedules, timeS
         
         timeSlots.forEach((slot, rowIndex) => {
           const matches = group.schedules.filter((s) => {
-            return s.rowIndex === rowIndex && s.colIndex === colIndex;
+            return cleanTime(s.time) === cleanTime(slot) && s.colIndex === colIndex;
           });
           
           if (matches.length === 0) {

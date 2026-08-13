@@ -6,6 +6,8 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 
+const cleanTime = (t) => String(t || "").replace(/\s+/g, "").trim();
+
 /**
  * Build room occupancy grid with all rooms organized by days:
  * - One sheet/document with all rooms
@@ -48,7 +50,7 @@ function buildAllRoomsOccupancyGrid(rooms, schedules, timeSlots) {
       timeSlots.forEach((slot, rowIndex) => {
         const matches = schedules.filter((s) => {
           const roomMatch = s.roomId && String(s.roomId) === roomId;
-          const timeMatch = s.rowIndex === rowIndex;
+          const timeMatch = cleanTime(s.time) === cleanTime(slot);
           const dayMatch = s.colIndex === colIndex;
           return roomMatch && timeMatch && dayMatch;
         });
@@ -111,7 +113,7 @@ function buildSingleDayRoomOccupancyGrid(day, rooms, schedules, timeSlots) {
     timeSlots.forEach((slot, rowIndex) => {
       const matches = schedules.filter((s) => {
         const roomMatch = s.roomId && String(s.roomId) === roomId;
-        const timeMatch = s.rowIndex === rowIndex;
+        const timeMatch = cleanTime(s.time) === cleanTime(slot);
         const dayMatch = s.colIndex === colIndex;
         return roomMatch && timeMatch && dayMatch;
       });
@@ -397,7 +399,7 @@ function buildMobileRoomsOccupancyGrid(rooms, schedules, timeSlots) {
       timeSlots.forEach((slot, rowIndex) => {
         const matches = schedules.filter((s) => {
           const roomMatch = s.roomId && String(s.roomId) === roomId;
-          const timeMatch = s.rowIndex === rowIndex;
+          const timeMatch = cleanTime(s.time) === cleanTime(slot);
           const dayMatch = s.colIndex === colIndex;
           return roomMatch && timeMatch && dayMatch;
         });
@@ -462,7 +464,7 @@ function buildMobileSingleDayRoomsOccupancyGrid(day, rooms, schedules, timeSlots
     timeSlots.forEach((slot, rowIndex) => {
       const matches = schedules.filter((s) => {
         const roomMatch = s.roomId && String(s.roomId) === roomId;
-        const timeMatch = s.rowIndex === rowIndex;
+        const timeMatch = cleanTime(s.time) === cleanTime(slot);
         const dayMatch = s.colIndex === colIndex;
         return roomMatch && timeMatch && dayMatch;
       });

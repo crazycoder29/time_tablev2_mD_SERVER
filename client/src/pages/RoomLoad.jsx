@@ -3,9 +3,9 @@ import { Building2, Plus, Trash2, Save, Search, Clock, Calendar } from "lucide-r
 import { useSearchParams } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
-import { roomService } from "../firebase/services";
+import { roomService, timetableService } from "../firebase/services";
 import RoomAvailability from "./RoomAvailability";
-import { DEFAULT_TIME_SLOTS } from "../utils/timetableUIHelpers";
+import { DEFAULT_TIME_SLOTS, fetchDynamicTimeSlots } from "../utils/timetableUIHelpers";
 
 const RoomLoad = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -13,6 +13,7 @@ const RoomLoad = () => {
   const [faculties, setFaculties] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [filteredRooms, setFilteredRooms] = useState([]);
+  const [timeSlots, setTimeSlots] = useState(DEFAULT_TIME_SLOTS);
 
   const [selectedFaculty, setSelectedFaculty] = useState(searchParams.get("faculty") || "");
 
@@ -201,6 +202,11 @@ const RoomLoad = () => {
 
   useEffect(() => {
     fetchFaculties();
+    const loadSlots = async () => {
+      const dynamicSlots = await fetchDynamicTimeSlots(timetableService);
+      setTimeSlots(dynamicSlots);
+    };
+    loadSlots();
   }, []);
 
   // if faculty was pre-loaded from URL, fetch its rooms on mount
@@ -757,7 +763,7 @@ const RoomLoad = () => {
                                         </tr>
                                       </thead>
                                       <tbody>
-                                        {DEFAULT_TIME_SLOTS.map(time => (
+                                        {timeSlots.map(time => (
                                           <tr key={time}>
                                             <td className="border border-gray-300 p-1 whitespace-nowrap">{time}</td>
                                             {["mon", "tue", "wed", "thu", "fri", "sat"].map(day => (
@@ -899,7 +905,7 @@ const RoomLoad = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {DEFAULT_TIME_SLOTS.map(time => (
+                      {timeSlots.map(time => (
                         <tr key={time}>
                           <td className="border border-gray-300 p-2 whitespace-nowrap">{time}</td>
                           {["mon", "tue", "wed", "thu", "fri", "sat"].map(day => (

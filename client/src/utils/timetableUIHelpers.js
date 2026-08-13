@@ -37,7 +37,7 @@ export async function checkExistingTimetable(className, branch, semester, type, 
     });
 
     const existingTimetable = await timetableService.loadTimetable(timetableId);
-    
+
     if (existingTimetable) {
       return {
         ...existingTimetable,
@@ -48,7 +48,7 @@ export async function checkExistingTimetable(className, branch, semester, type, 
         batchDataByTable: existingTimetable.batchDataByTable || {},
       };
     }
-    
+
     return null;
   } catch (error) {
     console.error("Error checking for existing timetable:", error);
@@ -62,7 +62,7 @@ export async function checkExistingTimetable(className, branch, semester, type, 
 export function calculateConflictStats(conflicts) {
   const teacherConflicts = new Set();
   const roomConflicts = new Set();
-  
+
   Object.values(conflicts).forEach((tableConflicts) => {
     Object.entries(tableConflicts).forEach(([key, conflictData]) => {
       if (conflictData.teacher?.conflict) {
@@ -79,7 +79,7 @@ export function calculateConflictStats(conflicts) {
       }
     });
   });
-  
+
   return {
     teacherConflicts: teacherConflicts.size,
     roomConflicts: roomConflicts.size
@@ -92,7 +92,7 @@ export function calculateConflictStats(conflicts) {
 export function createBatchInCell(currentBatches, activeTable, rowIndex, colIndex) {
   const key = `${rowIndex}-${colIndex}`;
   const tableData = currentBatches[activeTable] || {};
-  
+
   return {
     ...currentBatches,
     [activeTable]: {
@@ -119,7 +119,7 @@ export function updateBatchData({
 }) {
   const key = `${rowIndex}-${colIndex}-${batchIndex}`;
   const tableData = currentBatchData[activeTable] || {};
-  
+
   const updated = {
     ...currentBatchData,
     [activeTable]: {
@@ -130,7 +130,7 @@ export function updateBatchData({
       }
     }
   };
-  
+
   let conflictResult = null;
   if (field === "teacher" || field === "room") {
     conflictResult = checkConflictsFn({
@@ -148,7 +148,7 @@ export function updateBatchData({
       tableIds: tables
     });
   }
-  
+
   return {
     updatedBatchData: updated,
     conflictResult
@@ -160,18 +160,18 @@ export function updateBatchData({
  */
 export function updateConflictsState(currentConflicts, activeTable, key, field, conflictResult) {
   const tableConflicts = currentConflicts[activeTable] || {};
-  
+
   return {
     ...currentConflicts,
     [activeTable]: {
       ...tableConflicts,
       [key]: {
         ...(tableConflicts[key] || {}),
-        teacher: field === "teacher" 
-          ? conflictResult.teacher 
+        teacher: field === "teacher"
+          ? conflictResult.teacher
           : (tableConflicts[key]?.teacher || { conflict: false }),
-        room: field === "room" 
-          ? conflictResult.room 
+        room: field === "room"
+          ? conflictResult.room
           : (tableConflicts[key]?.room || { conflict: false })
       }
     }
@@ -192,23 +192,82 @@ export function generateNextTimeSlot(currentTimeSlots) {
   const lastSlot = currentTimeSlots[currentTimeSlots.length - 1];
   const endTime = lastSlot.split(" - ")[1]; // Get ending time of last slot
   const [endHour, endMinute] = endTime.split(":").map(num => parseInt(num));
-  
+
   // Start time is the end time of the last slot
   const startHour = endHour;
   const startMinute = endMinute;
-  
+
   // Add 55 minutes to get the end time
   let newEndMinute = startMinute + 55;
   let newEndHour = startHour;
-  
+
   if (newEndMinute >= 60) {
     newEndHour += 1;
     newEndMinute -= 60;
   }
-  
+
   // Format the times (no leading zero for hours, but pad minutes)
   const startTimeStr = `${startHour}:${startMinute.toString().padStart(2, '0')}`;
   const endTimeStr = `${newEndHour}:${newEndMinute.toString().padStart(2, '0')}`;
-  
+
   return `${startTimeStr} - ${endTimeStr}`;
 }
+
+/**
+ * Normalizes a time slot string by removing all whitespace.
+ */
+export const cleanTime = (t) => String(t || "").replace(/\s+/g, "").trim();
+
+/**
+ * Parses a time slot start time to minutes since midnight for chronological sorting.
+ */
+export function parseTimeToMinutes(timeStr) {
+  if (!timeStr) return 0;
+  const match = String(timeStr).split(/[–-]/)[0].trim().match(/(\d+):(\d+)\s*(am|pm)?/i);
+  if (!match) return 0;
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  const ampm = match[3] ? match[3].toLowerCase() : null;
+  
+  if (ampm) {
+    if (ampm === "pm" && hours < 12) hours += 12;
+    if (ampm === "am" && hours === 12) hours = 0;
+  } else {
+    if (hours >= 1 && hours <= 6) {
+      hours += 12;
+    }
+  }
+  return hours * 60 + minutes;
+}
+
+/**
+ * Dynamically fetches all timetables and presets, compiles unique, sorted time slots.
+ */
+export async function fetchDynamicTimeSlots(timetableService) {
+  try {
+    const timetablesMeta = await timetableService.listAllTimetablesMeta();
+    const uniqueSlots = new Set();
+    
+    if (Array.isArray(timetablesMeta)) {
+      timetablesMeta.forEach(meta => {
+        if (Array.isArray(meta.timeSlots)) {
+          meta.timeSlots.forEach(slot => {
+            if (slot && slot.trim()) {
+              uniqueSlots.add(slot.trim());
+            }
+          });
+        }
+      });
+    }
+
+    if (uniqueSlots.size === 0) {
+      return DEFAULT_TIME_SLOTS;
+    }
+
+    return Array.from(uniqueSlots).sort((a, b) => parseTimeToMinutes(a) - parseTimeToMinutes(b));
+  } catch (error) {
+    console.error("Error fetching dynamic time slots:", error);
+    return DEFAULT_TIME_SLOTS;
+  }
+}
+

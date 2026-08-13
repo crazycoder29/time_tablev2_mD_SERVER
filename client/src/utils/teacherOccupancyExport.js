@@ -7,6 +7,8 @@ import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { formatCellOccupancy, abbreviateText } from "./abbreviations";
 
+const cleanTime = (t) => String(t || "").replace(/\s+/g, "").trim();
+
 /**
  * Build teacher occupancy grid for a specific day
  */
@@ -33,7 +35,7 @@ function buildTeacherOccupancyGrid(teachers, schedules, timeSlots, dayKey, dayLa
       const matches = schedules.filter((s) => {
         const teacherIds = s.teacherId ? String(s.teacherId).split(',').map(id => id.trim()).filter(Boolean) : [];
         const teacherMatch = teacherIds.includes(teacherId);
-        const timeMatch = s.rowIndex === rowIndex;
+        const timeMatch = cleanTime(s.time) === cleanTime(timeSlot);
         const dayMatch = s.colIndex === colIndex;
         return teacherMatch && timeMatch && dayMatch;
       });
@@ -493,7 +495,7 @@ export function exportIndividualTeacherOccupancyToPdf(teacher, schedules, timeSl
       const matches = schedules.filter((s) => {
         const teacherIds = s.teacherId ? String(s.teacherId).split(',').map(id => id.trim()).filter(Boolean) : [];
         const teacherMatch = teacherIds.includes(teacherId);
-        const timeMatch = s.rowIndex === rowIndex;
+        const timeMatch = cleanTime(s.time) === cleanTime(timeSlot);
         const dayMatch = s.colIndex === colIndex;
         return teacherMatch && timeMatch && dayMatch;
       });
@@ -596,7 +598,7 @@ export function exportIndividualTeacherOccupancyToExcel(teacher, schedules, time
       const matches = schedules.filter((s) => {
         const teacherIds = s.teacherId ? String(s.teacherId).split(',').map(id => id.trim()).filter(Boolean) : [];
         const teacherMatch = teacherIds.includes(teacherId);
-        const timeMatch = s.rowIndex === rowIndex;
+        const timeMatch = cleanTime(s.time) === cleanTime(timeSlot);
         const dayMatch = s.colIndex === colIndex;
         return teacherMatch && timeMatch && dayMatch;
       });

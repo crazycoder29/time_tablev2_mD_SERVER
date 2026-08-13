@@ -3,10 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { Building2, Mail, Lock, LogIn, AlertCircle, Download, FileText, UserCheck, CheckCircle2 } from 'lucide-react';
 import { apiFetch } from '../firebase/api';
-import { DEFAULT_TIME_SLOTS } from '../utils/timetableUIHelpers';
+import { DEFAULT_TIME_SLOTS, fetchDynamicTimeSlots } from '../utils/timetableUIHelpers';
 import { exportIndividualTeacherOccupancyToPdf } from '../utils/teacherOccupancyExport';
-
-import { courseService } from '../firebase/services';
+import { timetableService, courseService } from '../firebase/services';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -51,9 +50,10 @@ const Login = () => {
         return;
       }
 
-      const [schedules, coursesList] = await Promise.all([
+      const [schedules, coursesList, dynamicSlots] = await Promise.all([
         apiFetch('/api/schedules/public-all'),
         apiFetch('/api/courses/public-all').catch(() => []),
+        fetchDynamicTimeSlots(timetableService),
       ]);
 
       const courseMap = new Map();
@@ -102,7 +102,7 @@ const Login = () => {
       exportIndividualTeacherOccupancyToPdf(
         teacherRes,
         enrichedSchedules,
-        DEFAULT_TIME_SLOTS,
+        dynamicSlots,
         `${teacherRes.ID || teacherRes.name}_Weekly_Schedule`
       );
 

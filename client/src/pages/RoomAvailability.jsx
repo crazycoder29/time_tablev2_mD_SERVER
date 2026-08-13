@@ -12,13 +12,12 @@ import {
   Building2,
 } from "lucide-react";
 import { roomService, scheduleService, timetableService } from "../firebase/services";
-import { DEFAULT_TIME_SLOTS } from "../utils/timetableUIHelpers";
+import { DEFAULT_TIME_SLOTS, cleanTime, fetchDynamicTimeSlots } from "../utils/timetableUIHelpers";
 import RoomAvailabilityExportModal from "../components/RoomAvailabilityExportModal";
 
 // ─── constants ────────────────────────────────────────────────────────────────
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat"];
-const TIMESLOTS = DEFAULT_TIME_SLOTS;
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 const isSlotAvailable = (room, dayKey, time) =>
@@ -42,6 +41,7 @@ const setSlotAvailability = (room, dayKey, time, available) => {
 
 // ─── component ────────────────────────────────────────────────────────────────
 const RoomAvailability = ({ faculty, rooms: initialRooms, onRoomsUpdate }) => {
+  const [timeSlots, setTimeSlots] = useState(DEFAULT_TIME_SLOTS);
   // sidebar
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedRoomIndex, setSelectedRoomIndex] = useState(0);
@@ -74,6 +74,14 @@ const RoomAvailability = ({ faculty, rooms: initialRooms, onRoomsUpdate }) => {
     const stop = () => { isDragging.current = false; };
     window.addEventListener("mouseup", stop);
     return () => window.removeEventListener("mouseup", stop);
+  }, []);
+
+  useEffect(() => {
+    const loadSlots = async () => {
+      const dynamicSlots = await fetchDynamicTimeSlots(timetableService);
+      setTimeSlots(dynamicSlots);
+    };
+    loadSlots();
   }, []);
 
   const selectedRoom = rooms[selectedRoomIndex] ?? null;
@@ -112,7 +120,7 @@ const RoomAvailability = ({ faculty, rooms: initialRooms, onRoomsUpdate }) => {
     setRooms((prev) => {
       let room = prev[selectedRoomIndex];
       for (const dayKey of DAY_KEYS) {
-        for (const time of TIMESLOTS) {
+        for (const time of timeSlots) {
           room = setSlotAvailability(room, dayKey, time, value);
         }
       }
@@ -125,7 +133,7 @@ const RoomAvailability = ({ faculty, rooms: initialRooms, onRoomsUpdate }) => {
   const setColumnCells = (dayKey, value) => {
     setRooms((prev) => {
       let room = prev[selectedRoomIndex];
-      for (const time of TIMESLOTS) room = setSlotAvailability(room, dayKey, time, value);
+      for (const time of timeSlots) room = setSlotAvailability(room, dayKey, time, value);
       const updated = [...prev];
       updated[selectedRoomIndex] = { ...room, isModified: true };
       return updated;
@@ -145,11 +153,11 @@ const RoomAvailability = ({ faculty, rooms: initialRooms, onRoomsUpdate }) => {
   // check if all are a given value (for toggle logic)
   const isAllSet = (val) =>
     selectedRoom
-      ? DAY_KEYS.every((d) => TIMESLOTS.every((t) => isSlotAvailable(selectedRoom, d, t) === val))
+      ? DAY_KEYS.every((d) => timeSlots.every((t) => isSlotAvailable(selectedRoom, d, t) === val))
       : false;
 
   const isColumnAllSet = (dayKey, val) =>
-    selectedRoom ? TIMESLOTS.every((t) => isSlotAvailable(selectedRoom, dayKey, t) === val) : false;
+    selectedRoom ? timeSlots.every((t) => isSlotAvailable(selectedRoom, dayKey, t) === val) : false;
 
   const isRowAllSet = (time, val) =>
     selectedRoom ? DAY_KEYS.every((d) => isSlotAvailable(selectedRoom, d, time) === val) : false;
@@ -177,12 +185,11 @@ const RoomAvailability = ({ faculty, rooms: initialRooms, onRoomsUpdate }) => {
         })
       );
 
-      // ── Step 3: build occupied map: "roomId__colIndex__rowIndex" → label ──
-      // colIndex: Mon=0 Tue=1 Wed=2 Thu=3 Fri=4 Sat=5  (same as RoomOccupancy)
+      // ── Step 3: build occupied map: "roomId__dayKey__cleanTime" → label ──
       const occupied = new Map();
       for (const s of allSchedules) {
-        if (!s.roomId) continue;
-        const key = `${s.roomId}__${s.colIndex}__${s.rowIndex}`;
+        if (!s.roomId || !s.day || !s.time) continue;
+        const key = `${s.roomId}__${String(s.day).toLowerCase()}__${cleanTime(s.time)}`;
         if (!occupied.has(key)) {
           const meta = timetablesMap.get(s.timetableId);
           const label = meta
@@ -193,8 +200,6 @@ const RoomAvailability = ({ faculty, rooms: initialRooms, onRoomsUpdate }) => {
       }
 
       // ── Step 4: rebuild availability for every room ───────────────────────
-      const COL = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5 };
-
       setRooms((prev) =>
         prev.map((room) => {
           if (!room.unid) return room;
@@ -205,8 +210,8 @@ const RoomAvailability = ({ faculty, rooms: initialRooms, onRoomsUpdate }) => {
             if (!updated.availability.day[dayKey])
               updated.availability.day[dayKey] = { time: [] };
 
-            TIMESLOTS.forEach((time, rowIndex) => {
-              const key = `${String(room.unid)}__${COL[dayKey]}__${rowIndex}`;
+            timeSlots.forEach((time) => {
+              const key = `${String(room.unid)}__${dayKey}__${cleanTime(time)}`;
               const isOccupied = occupied.has(key);
               updated = setSlotAvailability(updated, dayKey, time, isOccupied);
             });
@@ -220,9 +225,9 @@ const RoomAvailability = ({ faculty, rooms: initialRooms, onRoomsUpdate }) => {
       const labelsMap = {};
       for (const room of rooms) {
         if (!room.unid) continue;
-        TIMESLOTS.forEach((time, rowIndex) => {
+        timeSlots.forEach((time) => {
           for (const dayKey of DAY_KEYS) {
-            const key = `${String(room.unid)}__${COL[dayKey]}__${rowIndex}`;
+            const key = `${String(room.unid)}__${dayKey}__${cleanTime(time)}`;
             if (occupied.has(key))
               labelsMap[`${String(room.unid)}__${dayKey}__${time}`] = occupied.get(key);
           }
@@ -238,7 +243,7 @@ const RoomAvailability = ({ faculty, rooms: initialRooms, onRoomsUpdate }) => {
     } finally {
       setAutoDetecting(false);
     }
-  }, [rooms]);
+  }, [rooms, timeSlots]);
 
   // ── save ────────────────────────────────────────────────────────────────────
   const handleSave = async () => {
@@ -469,7 +474,7 @@ const RoomAvailability = ({ faculty, rooms: initialRooms, onRoomsUpdate }) => {
               </thead>
 
               <tbody>
-                {TIMESLOTS.map((time) => (
+                {timeSlots.map((time) => (
                   <tr key={time} className="group">
                     {/* row label + row select-all */}
                     <td className="border border-gray-200 bg-gray-50 px-2 py-1.5 whitespace-nowrap text-gray-600 font-medium">
@@ -544,7 +549,7 @@ const RoomAvailability = ({ faculty, rooms: initialRooms, onRoomsUpdate }) => {
         isOpen={showExportModal}
         onClose={() => setShowExportModal(false)}
         rooms={rooms}
-        timeSlots={TIMESLOTS}
+        timeSlots={timeSlots}
         faculty={faculty}
       />
     </div>

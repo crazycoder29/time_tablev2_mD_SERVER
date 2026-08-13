@@ -18,6 +18,7 @@ const ClassOccupancy = () => {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showPreviewAllModal, setShowPreviewAllModal] = useState(false);
+  const [timetablesMap, setTimetablesMap] = useState(new Map());
   
   // State for filters
   const [selectedClass, setSelectedClass] = useState(null);
@@ -68,6 +69,34 @@ const ClassOccupancy = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (selectedClass) {
+      const meta = timetablesMap.get(selectedClass.id);
+      if (meta && Array.isArray(meta.timeSlots) && meta.timeSlots.length > 0) {
+        console.log("📊 Setting custom class time slots:", meta.timeSlots);
+        setTimeSlots(meta.timeSlots);
+      } else {
+        // Fallback: calculate maxRowIndex for selectedClass
+        const classSchedules = schedules.filter(s => s.timetableId === selectedClass.id);
+        let maxRowIndex = DEFAULT_TIME_SLOTS.length - 1;
+        classSchedules.forEach((schedule) => {
+          if (schedule.rowIndex !== undefined && schedule.rowIndex > maxRowIndex) {
+            maxRowIndex = schedule.rowIndex;
+          }
+        });
+        const generatedTimeSlots = [];
+        for (let i = 0; i <= maxRowIndex; i++) {
+          generatedTimeSlots.push(generateTimeSlot(i));
+        }
+        console.log("📊 Setting fallback generated time slots:", generatedTimeSlots);
+        setTimeSlots(generatedTimeSlots);
+      }
+    } else {
+      setTimeSlots([]);
+    }
+  }, [selectedClass, timetablesMap, schedules]);
+
 
   const loadData = async () => {
     try {
@@ -136,6 +165,7 @@ const ClassOccupancy = () => {
       );
 
       setSchedules(resolvedSchedules);
+      setTimetablesMap(timetablesMap);
 
       // Extract unique classes from schedules
       const classesMap = new Map();
@@ -167,26 +197,6 @@ const ClassOccupancy = () => {
       console.log('📊 Unique classes:', classesArray.length);
       console.log('📊 Sample class:', classesArray[0]);
 
-      // Find the maximum rowIndex to determine the last time slot
-      let maxRowIndex = -1;
-      schedulesData.forEach((schedule) => {
-        if (schedule.rowIndex !== undefined && schedule.rowIndex > maxRowIndex) {
-          maxRowIndex = schedule.rowIndex;
-        }
-      });
-
-      console.log('📊 Maximum rowIndex found:', maxRowIndex);
-
-      // Generate time slots from 0 to maxRowIndex
-      const generatedTimeSlots = [];
-      if (maxRowIndex >= 0) {
-        for (let i = 0; i <= maxRowIndex; i++) {
-          generatedTimeSlots.push(generateTimeSlot(i));
-        }
-      }
-
-      console.log('📊 Generated time slots:', generatedTimeSlots);
-      setTimeSlots(generatedTimeSlots);
 
     } catch (err) {
       console.error("Error loading data:", err);
