@@ -6,6 +6,7 @@ import { apiFetch } from '../firebase/api';
 import { DEFAULT_TIME_SLOTS, fetchDynamicTimeSlots } from '../utils/timetableUIHelpers';
 import { exportIndividualTeacherOccupancyToPdf } from '../utils/teacherOccupancyExport';
 import { timetableService, courseService } from '../firebase/services';
+import { getRoomDisplayName } from '../utils/idDisplayHelpers';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -50,11 +51,26 @@ const Login = () => {
         return;
       }
 
-      const [schedules, coursesList, dynamicSlots] = await Promise.all([
+      const [schedules, coursesList, dynamicSlots, allTimetablesList] = await Promise.all([
         apiFetch('/api/schedules/public-all'),
         apiFetch('/api/courses/public-all').catch(() => []),
         fetchDynamicTimeSlots(timetableService),
+        timetableService.listAllTimetablesMeta().catch(() => []),
       ]);
+
+      // Filter schedules to only include this teacher's schedules first
+      const teacherId = String(teacherRes.unid || '');
+      const teacherSchedules = (schedules || []).filter((s) => {
+        const teacherIds = s.teacherId ? String(s.teacherId).split(',').map(id => id.trim()).filter(Boolean) : [];
+        return teacherIds.includes(teacherId);
+      });
+
+      const timetablesMap = new Map();
+      if (Array.isArray(allTimetablesList)) {
+        allTimetablesList.forEach((t) => {
+          timetablesMap.set(t.timetableId, t);
+        });
+      }
 
       const courseMap = new Map();
       if (Array.isArray(coursesList)) {
@@ -66,38 +82,49 @@ const Login = () => {
         });
       }
 
-      const enrichedSchedules = (schedules || []).map((s) => {
-        const cKey = String(s.courseId || s.course || "").trim();
-        let matched = courseMap.get(cKey);
-        
-        if (!matched && Array.isArray(coursesList)) {
-          matched = coursesList.find(c => 
-            String(c.unid) === cKey || 
-            String(c.ID) === cKey || 
-            String(c.code) === cKey || 
-            (c.parentCourseId && String(c.parentCourseId) === cKey)
-          );
-        }
+      const enrichedSchedules = await Promise.all(
+        teacherSchedules.map(async (s) => {
+          const resolved = { ...s };
 
-        if (matched) {
-          return {
-            ...s,
-            code: matched.code || matched.ID || "",
-            course: matched.name || matched.ID || "",
-            batch: matched.batchName || s.batch || "",
-          };
-        }
+          // 1. Resolve timetable metadata (class, branch, semester, type)
+          const timetableMeta = timetablesMap.get(s.timetableId);
+          if (timetableMeta) {
+            resolved.class = timetableMeta.class;
+            resolved.branch = timetableMeta.branch;
+            resolved.semester = timetableMeta.semester;
+            resolved.type = timetableMeta.type;
+          }
 
-        if (s.course && !/^\d{10,}$/.test(String(s.course).trim())) {
-          return {
-            ...s,
-            code: s.code || s.course,
-            course: s.course,
-          };
-        }
+          // 2. Resolve room display name
+          if (s.roomId) {
+            resolved.room = await getRoomDisplayName(s.roomId);
+          }
 
-        return s;
-      });
+          // 3. Resolve course information
+          const cKey = String(s.courseId || s.course || "").trim();
+          let matched = courseMap.get(cKey);
+          
+          if (!matched && Array.isArray(coursesList)) {
+            matched = coursesList.find(c => 
+              String(c.unid) === cKey || 
+              String(c.ID) === cKey || 
+              String(c.code) === cKey || 
+              (c.parentCourseId && String(c.parentCourseId) === cKey)
+            );
+          }
+
+          if (matched) {
+            resolved.code = matched.code || matched.ID || "";
+            resolved.course = matched.name || matched.ID || "";
+            resolved.batch = matched.batchName || s.batch || "";
+          } else if (s.course && !/^\d{10,}$/.test(String(s.course).trim())) {
+            resolved.code = s.code || s.course;
+            resolved.course = s.course;
+          }
+
+          return resolved;
+        })
+      );
 
       exportIndividualTeacherOccupancyToPdf(
         teacherRes,

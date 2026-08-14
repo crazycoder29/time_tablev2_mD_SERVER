@@ -48,7 +48,7 @@ async def list_timetables(
 
 
 @router.get("/all-meta")
-async def list_all_timetables_meta(user: dict = Depends(get_current_user)):
+async def list_all_timetables_meta():
     docs = [_strip_id(d) for d in await timetables_collection.find().to_list(length=None)]
 
     def sort_key(d):

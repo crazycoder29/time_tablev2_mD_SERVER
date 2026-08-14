@@ -5,7 +5,7 @@ import Footer from "../components/Footer";
 import ClassOccupancyPreviewModal from "../components/ClassOccupancyPreviewModal";
 import { timetableService } from "../firebase/services";
 import { getAllSchedules } from "../firebase/services/schedules";
-import { DEFAULT_TIME_SLOTS } from "../utils/timetableUIHelpers";
+import { DEFAULT_TIME_SLOTS, fetchDynamicTimeSlots } from "../utils/timetableUIHelpers";
 import { getCourseDisplayName, getRoomDisplayName, getTeacherDisplayName } from "../utils/idDisplayHelpers";
 import { exportClassOccupancyToPdf, exportClassOccupancyToExcel, exportClassOccupancyToPdfMobile, exportClassOccupancyToExcelMobile } from "../utils/classOccupancyExport";
 
@@ -19,6 +19,7 @@ const ClassOccupancy = () => {
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showPreviewAllModal, setShowPreviewAllModal] = useState(false);
   const [timetablesMap, setTimetablesMap] = useState(new Map());
+  const [allTimeSlots, setAllTimeSlots] = useState([]);
   
   // State for filters
   const [selectedClass, setSelectedClass] = useState(null);
@@ -194,6 +195,10 @@ const ClassOccupancy = () => {
       setBranches(uniqueBranches);
       setSemesters(uniqueSemesters);
 
+      // Fetch dynamic time slots
+      const dynamicSlots = await fetchDynamicTimeSlots(timetableService);
+      setAllTimeSlots(dynamicSlots);
+
       console.log('📊 Unique classes:', classesArray.length);
       console.log('📊 Sample class:', classesArray[0]);
 
@@ -287,22 +292,22 @@ const ClassOccupancy = () => {
 
   const handleExportAllPdf = (branchColors = {}, orderedClasses = null) => {
     const classesToExport = orderedClasses || filteredClasses;
-    exportClassOccupancyToPdf(classesToExport, schedules, timeSlots, "all-classes-occupancy", branchColors);
+    exportClassOccupancyToPdf(classesToExport, schedules, allTimeSlots, "all-classes-occupancy", branchColors);
   };
   
   const handleExportAllExcel = (branchColors = {}, orderedClasses = null) => {
     const classesToExport = orderedClasses || filteredClasses;
-    exportClassOccupancyToExcel(classesToExport, schedules, timeSlots, "all-classes-occupancy", branchColors);
+    exportClassOccupancyToExcel(classesToExport, schedules, allTimeSlots, "all-classes-occupancy", branchColors);
   };
 
   const handleExportAllPdfMobile = (branchColors = {}, orderedClasses = null, layout = "multi") => {
     const classesToExport = orderedClasses || filteredClasses;
-    exportClassOccupancyToPdfMobile(classesToExport, schedules, timeSlots, "all-classes-occupancy-mobile", branchColors, layout);
+    exportClassOccupancyToPdfMobile(classesToExport, schedules, allTimeSlots, "all-classes-occupancy-mobile", branchColors, layout);
   };
   
   const handleExportAllExcelMobile = (branchColors = {}, orderedClasses = null) => {
     const classesToExport = orderedClasses || filteredClasses;
-    exportClassOccupancyToExcelMobile(classesToExport, schedules, timeSlots, "all-classes-occupancy-mobile", branchColors);
+    exportClassOccupancyToExcelMobile(classesToExport, schedules, allTimeSlots, "all-classes-occupancy-mobile", branchColors);
   };
 
   // Render cell for individual class view (days as columns)
@@ -652,7 +657,7 @@ const ClassOccupancy = () => {
           classData={null}
           allClasses={filteredClasses}
           schedules={schedules}
-          timeSlots={timeSlots}
+          timeSlots={allTimeSlots}
           onExportPdf={handleExportAllPdf}
           onExportExcel={handleExportAllExcel}
           onExportPdfMobile={handleExportAllPdfMobile}

@@ -789,9 +789,9 @@ export function exportClassOccupancyToPdfMobile(classes, schedules, timeSlots, f
     const baseRowHeight = 260 / Math.max(1, totalRows);
     let doc = null;
 
-    // Test scaling from 0.4 up to 2.2 to find the LARGEST font & padding that fits on EXACTLY 1 page
+    // Test scaling from 0.1 up to 2.2 to find the LARGEST font & padding that fits on EXACTLY 1 page
     for (let step = 0; step < 35; step++) {
-      const scale = 0.4 + (step / 34) * 1.8;
+      const scale = 0.1 + (step / 34) * 2.1;
       const testPadding = Math.max(0.01, Math.min(1.2, (baseRowHeight * 0.22) * scale));
       const testFontSize = Math.max(1.2, Math.min(8.0, (baseRowHeight * 1.3) * scale));
 
@@ -945,10 +945,14 @@ export function exportClassOccupancyToPdfMobile(classes, schedules, timeSlots, f
       const numPages = testDoc.internal.getNumberOfPages();
       const finalY = testDoc.lastAutoTable ? testDoc.lastAutoTable.finalY : 0;
 
+      if (step === 0) {
+        doc = testDoc; // Set fallback at minimum scale
+      }
+
       if (numPages === 1 && finalY <= 284) {
         doc = testDoc; // Keep updated with the best 1-page fit
       } else {
-        if (doc) break; // Exceeded 1 page, stop and use previous 1-page doc!
+        if (step > 0 && doc) break; // Exceeded 1 page, stop and use previous 1-page doc!
       }
     }
 

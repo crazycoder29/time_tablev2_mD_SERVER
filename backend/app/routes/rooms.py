@@ -29,7 +29,7 @@ def room_to_out(doc: dict) -> RoomOut:
 
 
 @router.get("", response_model=list[RoomOut])
-async def list_rooms(faculty: str | None = None, user: dict = Depends(get_current_user)):
+async def list_rooms(faculty: str | None = None):
     query = {}
     if faculty:
         query["faculty"] = {"$regex": f"^{faculty}$", "$options": "i"}  # case-insensitive exact match
