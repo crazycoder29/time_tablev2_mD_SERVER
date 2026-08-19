@@ -45,6 +45,7 @@ const Timetable = () => {
   const [isLoadingExisting, setIsLoadingExisting] = useState(false);
   const [showBrowseModal, setShowBrowseModal] = useState(false);
   const [timeSlots, setTimeSlots] = useState(DEFAULT_TIME_SLOTS);
+  const [days, setDays] = useState(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]);
 
   // Programs and branches from settings
   const [programs, setPrograms] = useState([]);
@@ -208,6 +209,7 @@ const Timetable = () => {
       if (existingTimetable) {
         // Load data into the ACTIVE tab only
         setTimeSlots(existingTimetable.timeSlots || DEFAULT_TIME_SLOTS);
+        setDays(existingTimetable.days || ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]);
         
         const firstLoadedTable = existingTimetable.tables[0] || "Table 1";
         const loadedBatchData = existingTimetable.batchDataByTable[firstLoadedTable] || {};
@@ -278,6 +280,7 @@ const Timetable = () => {
         
         // Load data into the ACTIVE tab only
         setTimeSlots(loadedTimetable.timeSlots);
+        setDays(loadedTimetable.days || ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]);
         
         const firstLoadedTable = loadedTimetable.tables[0] || "Table 1";
         const loadedBatchData = loadedTimetable.batchDataByTable[firstLoadedTable] || {};
@@ -302,60 +305,161 @@ const Timetable = () => {
   };
 
   const createBatch = (rowIndex, colIndex) => {
-    setBatches((prev) => createBatchInCell(prev, activeTable, rowIndex, colIndex));
+    const activeTableData = batchData[activeTable] || {};
+    const isMerged = !!activeTableData[`${rowIndex}-0-0`]?.isRowMerged;
+    if (isMerged) {
+      setBatches((prev) => {
+        let next = prev;
+        for (let col = 0; col < days.length; col++) {
+          next = createBatchInCell(next, activeTable, rowIndex, col);
+        }
+        return next;
+      });
+    } else {
+      setBatches((prev) => createBatchInCell(prev, activeTable, rowIndex, colIndex));
+    }
   };
 
   const removeBatch = (rowIndex, colIndex, batchIndex) => {
-    const key = `${rowIndex}-${colIndex}`;
-    const currentCount = (batches[activeTable] || {})[key] || 1;
-    if (currentCount <= 1) return; // nothing to remove
+    const activeTableData = batchData[activeTable] || {};
+    const isMerged = !!activeTableData[`${rowIndex}-0-0`]?.isRowMerged;
 
-    // Shift batch data: move entries after batchIndex down by 1
-    setBatchData((prev) => {
-      const tableData = { ...(prev[activeTable] || {}) };
-      // Shift batches above batchIndex down
-      for (let i = batchIndex; i < currentCount - 1; i++) {
-        tableData[`${rowIndex}-${colIndex}-${i}`] = tableData[`${rowIndex}-${colIndex}-${i + 1}`] || {};
-      }
-      // Remove the last (now duplicated) entry
-      delete tableData[`${rowIndex}-${colIndex}-${currentCount - 1}`];
-      return { ...prev, [activeTable]: tableData };
-    });
+    if (isMerged) {
+      const key = `${rowIndex}-0`;
+      const currentCount = (batches[activeTable] || {})[key] || 1;
+      if (currentCount <= 1) return;
 
-    // Decrement batch count
-    setBatches((prev) => ({
-      ...prev,
-      [activeTable]: {
-        ...(prev[activeTable] || {}),
-        [key]: currentCount - 1,
-      },
-    }));
+      setBatchData((prev) => {
+        const tableData = { ...(prev[activeTable] || {}) };
+        for (let col = 0; col < days.length; col++) {
+          for (let i = batchIndex; i < currentCount - 1; i++) {
+            tableData[`${rowIndex}-${col}-${i}`] = tableData[`${rowIndex}-${col}-${i + 1}`] || {};
+          }
+          delete tableData[`${rowIndex}-${col}-${currentCount - 1}`];
+        }
+        return { ...prev, [activeTable]: tableData };
+      });
+
+      setBatches((prev) => {
+        const tableBatches = { ...(prev[activeTable] || {}) };
+        for (let col = 0; col < days.length; col++) {
+          tableBatches[`${rowIndex}-${col}`] = currentCount - 1;
+        }
+        return { ...prev, [activeTable]: tableBatches };
+      });
+    } else {
+      const key = `${rowIndex}-${colIndex}`;
+      const currentCount = (batches[activeTable] || {})[key] || 1;
+      if (currentCount <= 1) return;
+
+      setBatchData((prev) => {
+        const tableData = { ...(prev[activeTable] || {}) };
+        for (let i = batchIndex; i < currentCount - 1; i++) {
+          tableData[`${rowIndex}-${colIndex}-${i}`] = tableData[`${rowIndex}-${colIndex}-${i + 1}`] || {};
+        }
+        delete tableData[`${rowIndex}-${colIndex}-${currentCount - 1}`];
+        return { ...prev, [activeTable]: tableData };
+      });
+
+      setBatches((prev) => ({
+        ...prev,
+        [activeTable]: {
+          ...(prev[activeTable] || {}),
+          [key]: currentCount - 1,
+        },
+      }));
+    }
   };
 
   const updateBatch = (rowIndex, colIndex, batchIndex, field, value) => {
+    const activeTableData = batchData[activeTable] || {};
+    const isMerged = !!activeTableData[`${rowIndex}-0-0`]?.isRowMerged;
+
     setBatchData((prev) => {
-      const { updatedBatchData, conflictResult } = updateBatchData({
-        currentBatchData: prev,
-        currentBatches: batches,
-        activeTable,
-        rowIndex,
-        colIndex,
-        batchIndex,
-        field,
-        value,
-        tables,
-        checkConflictsFn: checkConflicts,
-      });
-      
-      if (conflictResult) {
-        const key = `${rowIndex}-${colIndex}-${batchIndex}`;
-        setConflicts((prevConflicts) => 
-          updateConflictsState(prevConflicts, activeTable, key, field, conflictResult)
-        );
+      let nextBatchData = prev;
+
+      const updateSingle = (r, c, b, f, v) => {
+        const { updatedBatchData, conflictResult } = updateBatchData({
+          currentBatchData: nextBatchData,
+          currentBatches: batches,
+          activeTable,
+          rowIndex: r,
+          colIndex: c,
+          batchIndex: b,
+          field: f,
+          value: v,
+          tables,
+          checkConflictsFn: checkConflicts,
+        });
+
+        if (conflictResult) {
+          const key = `${r}-${c}-${b}`;
+          setConflicts((prevConflicts) => 
+            updateConflictsState(prevConflicts, activeTable, key, f, conflictResult)
+          );
+        }
+        nextBatchData = updatedBatchData;
+      };
+
+      if (isMerged) {
+        for (let col = 0; col < days.length; col++) {
+          updateSingle(rowIndex, col, batchIndex, field, value);
+        }
+      } else {
+        updateSingle(rowIndex, colIndex, batchIndex, field, value);
       }
-      
-      return updatedBatchData;
+
+      return nextBatchData;
     });
+  };
+
+  const toggleRowMerge = (rowIndex) => {
+    const activeTableData = batchData[activeTable] || {};
+    const isMerged = !!activeTableData[`${rowIndex}-0-0`]?.isRowMerged;
+
+    if (!isMerged) {
+      const firstCellKey = `${rowIndex}-0-0`;
+      const activeTableBatches = batches[activeTable] || {};
+      const sourceCount = activeTableBatches[`${rowIndex}-0`] || 1;
+
+      setBatchData((prev) => {
+        const tableData = { ...(prev[activeTable] || {}) };
+        tableData[firstCellKey] = {
+          ...(tableData[firstCellKey] || {}),
+          isRowMerged: true,
+        };
+
+        for (let col = 1; col < days.length; col++) {
+          for (let b = 0; b < sourceCount; b++) {
+            const srcKey = `${rowIndex}-0-${b}`;
+            const targetKey = `${rowIndex}-${col}-${b}`;
+            tableData[targetKey] = {
+              ...(tableData[srcKey] || {}),
+            };
+            delete tableData[targetKey].isRowMerged;
+          }
+        }
+        return { ...prev, [activeTable]: tableData };
+      });
+
+      setBatches((prev) => {
+        const tableBatches = { ...(prev[activeTable] || {}) };
+        for (let col = 1; col < days.length; col++) {
+          tableBatches[`${rowIndex}-${col}`] = sourceCount;
+        }
+        return { ...prev, [activeTable]: tableBatches };
+      });
+    } else {
+      const firstCellKey = `${rowIndex}-0-0`;
+      setBatchData((prev) => {
+        const tableData = { ...(prev[activeTable] || {}) };
+        if (tableData[firstCellKey]) {
+          tableData[firstCellKey] = { ...tableData[firstCellKey] };
+          delete tableData[firstCellKey].isRowMerged;
+        }
+        return { ...prev, [activeTable]: tableData };
+      });
+    }
   };
   
   // Copy cell data from source to target
@@ -706,7 +810,7 @@ const Timetable = () => {
         },
         tables: [tableName],
         timeSlots,
-        days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+        days,
         batchesByTable,
         batchDataByTable,
       });
@@ -743,7 +847,7 @@ const Timetable = () => {
     return {
       tableId: tableLabel,
       meta: tableMeta,
-      days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+      days,
       timeSlots,
       batchesByTable: {
         [tableLabel]: batches[tableKey] || {},
@@ -933,7 +1037,9 @@ const Timetable = () => {
         {/* Timetable Grid — scrollable within its section */}
         <div className="relative flex-1 overflow-auto custom-scrollbar">
           <TimetableTable
+            days={days}
             timeSlots={timeSlots}
+            onToggleRowMerge={toggleRowMerge}
             batches={batches[activeTable] || {}}
             batchData={batchData[activeTable] || {}}
             conflicts={conflicts[activeTable] || {}}

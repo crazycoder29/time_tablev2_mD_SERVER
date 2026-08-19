@@ -37,6 +37,19 @@ function buildActualGrid(rooms, timeSlots) {
   const header = ["FACULTY", "ROOM", "CAPACITY", ...timeSlots];
   const allRows = [];
 
+  const hasSunday = (rooms || []).some(r => r?.availability?.day?.sun);
+  const DAYS = [
+    { key: "mon", label: "Mon", fullLabel: "MONDAY" },
+    { key: "tue", label: "Tue", fullLabel: "TUESDAY" },
+    { key: "wed", label: "Wed", fullLabel: "WEDNESDAY" },
+    { key: "thu", label: "Thu", fullLabel: "THURSDAY" },
+    { key: "fri", label: "Fri", fullLabel: "FRIDAY" },
+    { key: "sat", label: "Sat", fullLabel: "SATURDAY" },
+  ];
+  if (hasSunday) {
+    DAYS.push({ key: "sun", label: "Sun", fullLabel: "SUNDAY" });
+  }
+
   DAYS.forEach((day, dayIdx) => {
     allRows.push({ isDayHeader: true, dayLabel: day.fullLabel, colSpan: header.length });
 
@@ -110,6 +123,19 @@ function buildMobileGrid(rooms, timeSlots) {
   const sorted = sortByFaculty(rooms);
   const header = ["DAY", "FACULTY", "ROOM", "CAP", ...timeSlots];
   const allRows = [];
+
+  const hasSunday = (rooms || []).some(r => r?.availability?.day?.sun);
+  const DAYS = [
+    { key: "mon", label: "Mon", fullLabel: "MONDAY" },
+    { key: "tue", label: "Tue", fullLabel: "TUESDAY" },
+    { key: "wed", label: "Wed", fullLabel: "WEDNESDAY" },
+    { key: "thu", label: "Thu", fullLabel: "THURSDAY" },
+    { key: "fri", label: "Fri", fullLabel: "FRIDAY" },
+    { key: "sat", label: "Sat", fullLabel: "SATURDAY" },
+  ];
+  if (hasSunday) {
+    DAYS.push({ key: "sun", label: "Sun", fullLabel: "SUNDAY" });
+  }
 
   DAYS.forEach((day) => {
     let dayStart = allRows.length;
@@ -190,6 +216,19 @@ function buildMobileSingleDayGrid(day, rooms, timeSlots) {
  */
 export function exportRoomAvailabilityToPdf(rooms, timeSlots, label = "", fileName = "room-availability") {
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a2" });
+
+  const hasSunday = (rooms || []).some(r => r?.availability?.day?.sun);
+  const DAYS = [
+    { key: "mon", label: "Mon", fullLabel: "MONDAY" },
+    { key: "tue", label: "Tue", fullLabel: "TUESDAY" },
+    { key: "wed", label: "Wed", fullLabel: "WEDNESDAY" },
+    { key: "thu", label: "Thu", fullLabel: "THURSDAY" },
+    { key: "fri", label: "Fri", fullLabel: "FRIDAY" },
+    { key: "sat", label: "Sat", fullLabel: "SATURDAY" },
+  ];
+  if (hasSunday) {
+    DAYS.push({ key: "sun", label: "Sun", fullLabel: "SUNDAY" });
+  }
 
   DAYS.forEach((day, dayIndex) => {
     if (dayIndex > 0) {
@@ -363,6 +402,19 @@ export function exportRoomAvailabilityToPdfMobile(rooms, timeSlots, label = "", 
     // Multi-page A4 Landscape: 1 day per page
     const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
 
+    const hasSunday = (rooms || []).some(r => r?.availability?.day?.sun);
+    const DAYS = [
+      { key: "mon", label: "Mon", fullLabel: "MONDAY" },
+      { key: "tue", label: "Tue", fullLabel: "TUESDAY" },
+      { key: "wed", label: "Wed", fullLabel: "WEDNESDAY" },
+      { key: "thu", label: "Thu", fullLabel: "THURSDAY" },
+      { key: "fri", label: "Fri", fullLabel: "FRIDAY" },
+      { key: "sat", label: "Sat", fullLabel: "SATURDAY" },
+    ];
+    if (hasSunday) {
+      DAYS.push({ key: "sun", label: "Sun", fullLabel: "SUNDAY" });
+    }
+
     DAYS.forEach((day, dayIndex) => {
       if (dayIndex > 0) doc.addPage();
 
@@ -457,6 +509,19 @@ export function exportRoomAvailabilityToPdfMobile(rooms, timeSlots, label = "", 
 export function exportRoomAvailabilityToExcel(rooms, timeSlots, label = "", fileName = "room-availability") {
   const workbook = XLSX.utils.book_new();
   const { header, rows } = buildActualGrid(rooms, timeSlots);
+
+  const hasSunday = (rooms || []).some(r => r?.availability?.day?.sun);
+  const DAYS = [
+    { key: "mon", label: "Mon", fullLabel: "MONDAY" },
+    { key: "tue", label: "Tue", fullLabel: "TUESDAY" },
+    { key: "wed", label: "Wed", fullLabel: "WEDNESDAY" },
+    { key: "thu", label: "Thu", fullLabel: "THURSDAY" },
+    { key: "fri", label: "Fri", fullLabel: "FRIDAY" },
+    { key: "sat", label: "Sat", fullLabel: "SATURDAY" },
+  ];
+  if (hasSunday) {
+    DAYS.push({ key: "sun", label: "Sun", fullLabel: "SUNDAY" });
+  }
 
   const data = [header];
   const merges = [];

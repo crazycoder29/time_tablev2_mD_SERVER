@@ -9,14 +9,16 @@ import { generateTimetableId } from "./timetableHelpers";
  * Default time slots for a new timetable
  */
 export const DEFAULT_TIME_SLOTS = [
-  "7:00 - 7:55",
-  "7:55 - 8:50",
-  "8:50 - 9:45",
-  "10:30 - 11:25",
-  "11:25 - 12:20",
-  "12:20 - 1:15",
-  "1:15 - 2:10",
-  "2:10 - 3:05",
+  "7:00 AM - 7:55 AM",
+  "7:55 AM - 8:50 AM",
+  "8:50 AM - 9:45 AM",
+  "10:30 AM - 11:25 AM",
+  "11:25 AM - 12:20 PM",
+  "12:20 PM - 1:15 PM",
+  "1:15 PM - 2:10 PM",
+  "2:10 PM - 3:05 PM",
+  "3:05 PM - 4:00 PM",
+  "4:00 PM - 4:55 PM",
 ];
 
 /**
@@ -189,34 +191,69 @@ export function generateTableName(currentTables) {
  * Generates the next time slot
  */
 export function generateNextTimeSlot(currentTimeSlots) {
-  const lastSlot = currentTimeSlots[currentTimeSlots.length - 1];
-  const endTime = lastSlot.split(" - ")[1]; // Get ending time of last slot
-  const [endHour, endMinute] = endTime.split(":").map(num => parseInt(num));
-
-  // Start time is the end time of the last slot
-  const startHour = endHour;
-  const startMinute = endMinute;
-
-  // Add 55 minutes to get the end time
-  let newEndMinute = startMinute + 55;
-  let newEndHour = startHour;
-
-  if (newEndMinute >= 60) {
-    newEndHour += 1;
-    newEndMinute -= 60;
+  if (!currentTimeSlots || currentTimeSlots.length === 0) {
+    return "09:00 AM - 09:55 AM"; // fallback default
   }
-
-  // Format the times (no leading zero for hours, but pad minutes)
-  const startTimeStr = `${startHour}:${startMinute.toString().padStart(2, '0')}`;
-  const endTimeStr = `${newEndHour}:${newEndMinute.toString().padStart(2, '0')}`;
-
-  return `${startTimeStr} - ${endTimeStr}`;
+  const lastSlot = currentTimeSlots[currentTimeSlots.length - 1];
+  const parts = lastSlot.split(" - ");
+  const endTime = parts[1] || parts[0];
+  
+  const match = endTime.trim().match(/(\d+):(\d+)\s*(am|pm)?/i);
+  if (!match) return "09:00 AM - 09:55 AM";
+  
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  const ampm = match[3] ? match[3].toLowerCase() : null;
+  
+  // Convert end time of last slot to minutes
+  let startTotalMinutes;
+  if (ampm) {
+    let startHour24 = hours;
+    if (ampm === "pm" && startHour24 < 12) startHour24 += 12;
+    if (ampm === "am" && startHour24 === 12) startHour24 = 0;
+    startTotalMinutes = startHour24 * 60 + minutes;
+  } else {
+    // If no AM/PM, use the hours as-is (could be 12h or 24h, but we keep the system consistent)
+    startTotalMinutes = hours * 60 + minutes;
+  }
+  
+  const endTotalMinutes = startTotalMinutes + 55;
+  
+  // Format start time
+  const startH24 = Math.floor(startTotalMinutes / 60);
+  const startM = startTotalMinutes % 60;
+  
+  // Format end time
+  const endH24 = Math.floor(endTotalMinutes / 60);
+  const endM = endTotalMinutes % 60;
+  
+  if (ampm) {
+    // Format both as 12-hour with AM/PM
+    const format12 = (h24, m) => {
+      const p = h24 % 24 >= 12 ? "PM" : "AM";
+      let h12 = h24 % 12;
+      if (h12 === 0) h12 = 12;
+      return `${h12}:${m.toString().padStart(2, '0')} ${p}`;
+    };
+    return `${format12(startH24, startM)} - ${format12(endH24, endM)}`;
+  } else {
+    // Format as original did (no AM/PM, but let's handle 12-hour wrap if hours was 12 or less)
+    const formatNoAmpm = (h24, m) => {
+      let h = h24;
+      if (hours <= 12) {
+        h = h24 % 12;
+        if (h === 0) h = 12;
+      }
+      return `${h}:${m.toString().padStart(2, '0')}`;
+    };
+    return `${formatNoAmpm(startH24, startM)} - ${formatNoAmpm(endH24, endM)}`;
+  }
 }
 
 /**
  * Normalizes a time slot string by removing all whitespace.
  */
-export const cleanTime = (t) => String(t || "").replace(/\s+/g, "").trim();
+export const cleanTime = (t) => String(t || "").replace(/\s+/g, "").trim().toLowerCase();
 
 /**
  * Parses a time slot start time to minutes since midnight for chronological sorting.
@@ -268,6 +305,38 @@ export async function fetchDynamicTimeSlots(timetableService) {
   } catch (error) {
     console.error("Error fetching dynamic time slots:", error);
     return DEFAULT_TIME_SLOTS;
+  }
+}
+
+/**
+ * Dynamically fetches all timetables and presets, compiles unique, sorted days.
+ */
+export async function fetchDynamicDays(timetableService) {
+  try {
+    const timetablesMeta = await timetableService.listAllTimetablesMeta();
+    const uniqueDays = new Set();
+    
+    if (Array.isArray(timetablesMeta)) {
+      timetablesMeta.forEach(meta => {
+        if (Array.isArray(meta.days)) {
+          meta.days.forEach(day => {
+            if (day && day.trim()) {
+              uniqueDays.add(day.trim());
+            }
+          });
+        }
+      });
+    }
+
+    if (uniqueDays.size === 0) {
+      return ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    }
+
+    const order = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    return Array.from(uniqueDays).sort((a, b) => order.indexOf(a) - order.indexOf(b));
+  } catch (error) {
+    console.error("Error fetching dynamic days:", error);
+    return ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   }
 }
 

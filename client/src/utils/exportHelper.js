@@ -106,10 +106,16 @@ export function buildTimetableExportGrid({
 
   const skipMatrix = {};
 
+  const isRowMerged = (r) => !!resolved.batchDataForTable[`${r}-0-0`]?.isRowMerged;
+
   const body = normalizedSlots.map((slotLabel, timeIndex) => {
     const row = [slotLabel || ""]; // first column is Time
+    const rowMerged = isRowMerged(timeIndex);
 
     for (let dayIndex = 0; dayIndex < normalizedDays.length; dayIndex += 1) {
+      if (rowMerged && dayIndex > 0) {
+        continue;
+      }
       if (skipMatrix[`${timeIndex}-${dayIndex}`]) {
         continue;
       }
@@ -134,14 +140,24 @@ export function buildTimetableExportGrid({
         if (text) parts.push(text);
       }
 
-      if (parts.length <= 1) {
-        row.push(span > 1 ? { content: parts[0] ?? "", rowSpan: span } : (parts[0] ?? ""));
+      const cellValue = parts.length <= 1
+        ? (span > 1 ? { content: parts[0] ?? "", rowSpan: span } : (parts[0] ?? ""))
+        : (() => {
+            const maxLines = Math.max(
+              ...parts.map((p) => Math.max(1, String(p).split("\n").length))
+            );
+            const placeholder = Array.from({ length: maxLines }, () => " ").join("\n");
+            return { content: placeholder, subCells: parts, rowSpan: span };
+          })();
+
+      if (rowMerged) {
+        if (cellValue && typeof cellValue === "object") {
+          row.push({ ...cellValue, colSpan: normalizedDays.length });
+        } else {
+          row.push({ content: cellValue, colSpan: normalizedDays.length });
+        }
       } else {
-        const maxLines = Math.max(
-          ...parts.map((p) => Math.max(1, String(p).split("\n").length))
-        );
-        const placeholder = Array.from({ length: maxLines }, () => " ").join("\n");
-        row.push({ content: placeholder, subCells: parts, rowSpan: span });
+        row.push(cellValue);
       }
     }
 
@@ -188,16 +204,31 @@ function saveBlobFile(blob, fileName) {
 function cellToPlainText(cell) {
   if (!cell) return "";
   if (typeof cell === "string") return cell;
-  if (typeof cell === "object" && Array.isArray(cell.subCells)) {
-    // Horizontal representation for non-PDF outputs.
-    return cell.subCells.filter(Boolean).join(" | ");
+  if (typeof cell === "object") {
+    if (Array.isArray(cell.subCells)) {
+      // Horizontal representation for non-PDF outputs.
+      return cell.subCells.filter(Boolean).join(" | ");
+    }
+    if (cell.content !== undefined) {
+      return cellToPlainText(cell.content);
+    }
   }
   return String(cell);
 }
 
 function gridToAoa(grid) {
   const headRow = (grid.head?.[0] ?? []).map(cellToPlainText);
-  const bodyRows = (grid.body ?? []).map((row) => row.map(cellToPlainText));
+  const bodyRows = (grid.body ?? []).map((row) => {
+    const flatRow = [];
+    row.forEach((cell) => {
+      flatRow.push(cellToPlainText(cell));
+      const cSpan = (cell && typeof cell === "object") ? (cell.colSpan || 1) : 1;
+      for (let i = 1; i < cSpan; i++) {
+        flatRow.push("");
+      }
+    });
+    return flatRow;
+  });
   return [headRow, ...bodyRows];
 }
 
@@ -309,7 +340,7 @@ export function exportTimetableToPdf({
       const fontSize = 8;
       // Use doc sizing to calculate required vertical height accurately
       doc.setFontSize(fontSize);
-      const segMaxW = Math.max(1, dayW / n - pad * 2);
+      const segMaxW = Math.max(1, data.cell.width / n - pad * 2);
 
       let maxLinesRequired = 0;
       for (let i = 0; i < n; i++) {
@@ -478,7 +509,7 @@ export function exportTimetablesToPdf({ fileName, meta, tables }) {
         const pad = 2; // smaller internal padding for subcells
         const fontSize = 8;
         doc.setFontSize(fontSize);
-        const segMaxW = Math.max(1, dayW / n - pad * 2);
+        const segMaxW = Math.max(1, data.cell.width / n - pad * 2);
 
         let maxLinesRequired = 0;
         for (let i = 0; i < n; i++) {
@@ -579,6 +610,26 @@ export function exportTimetablesToExcel({ fileName, meta, tables }) {
       }
     }
 
+    // Dynamic Merges from grid spans (including colSpan and rowSpan)
+    const merges = [];
+    (grid.body ?? []).forEach((row, rIdx) => {
+      let colOffset = 0;
+      row.forEach((cell) => {
+        const cSpan = (cell && typeof cell === "object") ? (cell.colSpan || 1) : 1;
+        const rSpan = (cell && typeof cell === "object") ? (cell.rowSpan || 1) : 1;
+        if (cSpan > 1 || rSpan > 1) {
+          merges.push({
+            s: { r: rIdx + 1, c: colOffset },
+            e: { r: rIdx + rSpan, c: colOffset + cSpan - 1 }
+          });
+        }
+        colOffset += cSpan;
+      });
+    });
+    if (merges.length > 0) {
+      ws["!merges"] = (ws["!merges"] || []).concat(merges);
+    }
+
     const sheetNameBase = normalize(grid.tableId) || `Table ${index + 1}`;
     const sheetName = sheetNameBase.slice(0, 31) || `Table ${index + 1}`;
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
@@ -610,7 +661,13 @@ function buildDocHtml({ meta, grids, tables }) {
         cells
           .map((c) => {
             const text = escapeHtml(cellToPlainText(c)).replace(/\n/g, "<br/>");
-            return `<${tag}>${text}</${tag}>`;
+            const cSpan = (c && typeof c === "object") ? (c.colSpan || 1) : 1;
+            const rSpan = (c && typeof c === "object") ? (c.rowSpan || 1) : 1;
+            const attrs = [
+              cSpan > 1 ? `colspan="${cSpan}"` : "",
+              rSpan > 1 ? `rowspan="${rSpan}"` : "",
+            ].filter(Boolean).join(" ");
+            return `<${tag}${attrs ? " " + attrs : ""}>${text}</${tag}>`;
           })
           .join("") +
         "</tr>"

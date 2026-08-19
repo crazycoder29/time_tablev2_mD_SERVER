@@ -6,7 +6,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 
-const cleanTime = (t) => String(t || "").replace(/\s+/g, "").trim();
+const cleanTime = (t) => String(t || "").replace(/\s+/g, "").trim().toLowerCase();
 
 /**
  * Helper function to format class with type
@@ -32,6 +32,7 @@ function formatClassWithType(className, type) {
  * - Organized by days (Monday, Tuesday, etc.)
  */
 function buildAllClassesOccupancyGrid(classes, schedules, timeSlots) {
+  const hasSunday = (schedules || []).some(s => String(s.day).trim().toLowerCase() === "sun");
   const days = [
     { key: "Mon", label: "MONDAY" },
     { key: "Tue", label: "TUESDAY" },
@@ -40,9 +41,12 @@ function buildAllClassesOccupancyGrid(classes, schedules, timeSlots) {
     { key: "Fri", label: "FRIDAY" },
     { key: "Sat", label: "SATURDAY" },
   ];
+  if (hasSunday) {
+    days.push({ key: "Sun", label: "SUNDAY" });
+  }
 
   const dayToColIndex = {
-    "Mon": 0, "Tue": 1, "Wed": 2, "Thu": 3, "Fri": 4, "Sat": 5
+    "Mon": 0, "Tue": 1, "Wed": 2, "Thu": 3, "Fri": 4, "Sat": 5, "Sun": 6
   };
 
   const header = ["CLASS", "BRANCH", "SEMESTER", "TYPE", ...timeSlots];
@@ -218,6 +222,7 @@ export function exportClassOccupancyToPdf(classes, schedules, timeSlots, fileNam
     format: "a2"
   });
 
+  const hasSunday = (schedules || []).some(s => String(s.day).trim().toLowerCase() === "sun");
   const days = [
     { key: "Mon", label: "MONDAY" },
     { key: "Tue", label: "TUESDAY" },
@@ -226,6 +231,9 @@ export function exportClassOccupancyToPdf(classes, schedules, timeSlots, fileNam
     { key: "Fri", label: "FRIDAY" },
     { key: "Sat", label: "SATURDAY" },
   ];
+  if (hasSunday) {
+    days.push({ key: "Sun", label: "SUNDAY" });
+  }
 
   const hexToRgb = (hex) => {
     if (!hex || hex === '#FFFFFF') return [255, 255, 255];
@@ -478,6 +486,7 @@ function buildMobileClassesOccupancyGrid(classes, schedules, timeSlots) {
   const header = ["DAY", "CLS", "BR", "SM", ...timeSlots];
   const allRows = [];
 
+  const hasSunday = (schedules || []).some(s => String(s.day).trim().toLowerCase() === "sun");
   const days = [
     { key: "Mon", label: "MON", fullLabel: "MONDAY" },
     { key: "Tue", label: "TUE", fullLabel: "TUESDAY" },
@@ -486,9 +495,12 @@ function buildMobileClassesOccupancyGrid(classes, schedules, timeSlots) {
     { key: "Fri", label: "FRI", fullLabel: "FRIDAY" },
     { key: "Sat", label: "SAT", fullLabel: "SATURDAY" },
   ];
+  if (hasSunday) {
+    days.push({ key: "Sun", label: "SUN", fullLabel: "SUNDAY" });
+  }
 
   const dayToColIndex = {
-    "Mon": 0, "Tue": 1, "Wed": 2, "Thu": 3, "Fri": 4, "Sat": 5
+    "Mon": 0, "Tue": 1, "Wed": 2, "Thu": 3, "Fri": 4, "Sat": 5, "Sun": 6
   };
 
   days.forEach((day) => {
@@ -706,6 +718,7 @@ export function exportClassOccupancyToPdfMobile(classes, schedules, timeSlots, f
     ] : [255, 255, 255];
   };
 
+  const hasSunday = (schedules || []).some(s => String(s.day).trim().toLowerCase() === "sun");
   const days = [
     { key: "Mon", label: "MON", fullLabel: "MONDAY" },
     { key: "Tue", label: "TUE", fullLabel: "TUESDAY" },
@@ -714,6 +727,9 @@ export function exportClassOccupancyToPdfMobile(classes, schedules, timeSlots, f
     { key: "Fri", label: "FRI", fullLabel: "FRIDAY" },
     { key: "Sat", label: "SAT", fullLabel: "SATURDAY" },
   ];
+  if (hasSunday) {
+    days.push({ key: "Sun", label: "SUN", fullLabel: "SUNDAY" });
+  }
 
   if (layout === "single") {
     const { header, rows } = buildMobileClassesOccupancyGrid(classes, schedules, timeSlots);

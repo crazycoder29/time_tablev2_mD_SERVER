@@ -6,7 +6,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 
-const cleanTime = (t) => String(t || "").replace(/\s+/g, "").trim();
+const cleanTime = (t) => String(t || "").replace(/\s+/g, "").trim().toLowerCase();
 
 /**
  * Build room occupancy grid with all rooms organized by days:
@@ -14,6 +14,7 @@ const cleanTime = (t) => String(t || "").replace(/\s+/g, "").trim();
  * - Organized by days (Monday, Tuesday, etc.)
  */
 function buildAllRoomsOccupancyGrid(rooms, schedules, timeSlots) {
+  const hasSunday = (schedules || []).some(s => String(s.day).trim().toLowerCase() === "sun");
   const days = [
     { key: "Mon", label: "MONDAY" },
     { key: "Tue", label: "TUESDAY" },
@@ -22,9 +23,12 @@ function buildAllRoomsOccupancyGrid(rooms, schedules, timeSlots) {
     { key: "Fri", label: "FRIDAY" },
     { key: "Sat", label: "SATURDAY" },
   ];
+  if (hasSunday) {
+    days.push({ key: "Sun", label: "SUNDAY" });
+  }
 
   const dayToColIndex = {
-    "Mon": 0, "Tue": 1, "Wed": 2, "Thu": 3, "Fri": 4, "Sat": 5
+    "Mon": 0, "Tue": 1, "Wed": 2, "Thu": 3, "Fri": 4, "Sat": 5, "Sun": 6
   };
 
   const header = ["FACULTY", "ROOM", "CAPACITY", ...timeSlots];
@@ -162,6 +166,7 @@ export function exportRoomOccupancyToPdf(rooms, schedules, timeSlots, fileName =
     format: "a2"
   });
 
+  const hasSunday = (schedules || []).some(s => String(s.day).trim().toLowerCase() === "sun");
   const days = [
     { key: "Mon", label: "MONDAY" },
     { key: "Tue", label: "TUESDAY" },
@@ -170,6 +175,9 @@ export function exportRoomOccupancyToPdf(rooms, schedules, timeSlots, fileName =
     { key: "Fri", label: "FRIDAY" },
     { key: "Sat", label: "SATURDAY" },
   ];
+  if (hasSunday) {
+    days.push({ key: "Sun", label: "SUNDAY" });
+  }
 
   days.forEach((day, dayIndex) => {
     if (dayIndex > 0) {
@@ -367,6 +375,7 @@ export function exportRoomOccupancyToExcel(rooms, schedules, timeSlots, fileName
  * Build mobile room occupancy grid
  */
 function buildMobileRoomsOccupancyGrid(rooms, schedules, timeSlots) {
+  const hasSunday = (schedules || []).some(s => String(s.day).trim().toLowerCase() === "sun");
   const days = [
     { key: "Mon", label: "MON", fullLabel: "MONDAY" },
     { key: "Tue", label: "TUE", fullLabel: "TUESDAY" },
@@ -375,9 +384,12 @@ function buildMobileRoomsOccupancyGrid(rooms, schedules, timeSlots) {
     { key: "Fri", label: "FRI", fullLabel: "FRIDAY" },
     { key: "Sat", label: "SAT", fullLabel: "SATURDAY" },
   ];
+  if (hasSunday) {
+    days.push({ key: "Sun", label: "SUN", fullLabel: "SUNDAY" });
+  }
 
   const dayToColIndex = {
-    "Mon": 0, "Tue": 1, "Wed": 2, "Thu": 3, "Fri": 4, "Sat": 5
+    "Mon": 0, "Tue": 1, "Wed": 2, "Thu": 3, "Fri": 4, "Sat": 5, "Sun": 6
   };
 
   const header = ["DAY", "FCT", "ROOM", "CAP", ...timeSlots];
@@ -503,6 +515,7 @@ function buildMobileSingleDayRoomsOccupancyGrid(day, rooms, schedules, timeSlots
  * Export room occupancy to PDF in mobile-friendly format (Portrait A4 single sheet or Landscape A4 multi-page)
  */
 export function exportRoomOccupancyToPdfMobile(rooms, schedules, timeSlots, fileName = "room-occupancy-mobile", layout = "multi") {
+  const hasSunday = (schedules || []).some(s => String(s.day).trim().toLowerCase() === "sun");
   const days = [
     { key: "Mon", label: "MON", fullLabel: "MONDAY" },
     { key: "Tue", label: "TUE", fullLabel: "TUESDAY" },
@@ -511,6 +524,9 @@ export function exportRoomOccupancyToPdfMobile(rooms, schedules, timeSlots, file
     { key: "Fri", label: "FRI", fullLabel: "FRIDAY" },
     { key: "Sat", label: "SAT", fullLabel: "SATURDAY" },
   ];
+  if (hasSunday) {
+    days.push({ key: "Sun", label: "SUN", fullLabel: "SUNDAY" });
+  }
 
   if (layout === "single") {
     // Single page A4 portrait view

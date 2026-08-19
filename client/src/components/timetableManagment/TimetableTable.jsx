@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from "react";
 import TimetableCell from "./TimetableCell";
 
 const TimetableTable = ({ 
+  days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
   timeSlots, 
   batches,
   batchData,
@@ -25,8 +26,8 @@ const TimetableTable = ({
   allRoomsRaw,
   currentTabMeta,
   currentTableKey,
+  onToggleRowMerge,
 }) => {
-  const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const scrollContainerRef = useRef(null);
   const scrollIntervalRef = useRef(null);
 
@@ -144,7 +145,10 @@ const TimetableTable = ({
     return hasData;
   };
 
+  const isRowMerged = (r) => !!batchData[`${r}-0-0`]?.isRowMerged;
+
   const shouldSkipCell = (rowIndex, colIndex) => {
+    if (isRowMerged(rowIndex) && colIndex > 0) return true;
     if (rowIndex === 0) return false;
     return isSameCell(rowIndex, rowIndex - 1, colIndex);
   };
@@ -190,11 +194,23 @@ const TimetableTable = ({
           {timeSlots.map((slot, rowIndex) => (
             <tr key={rowIndex} className="border-b border-gray-400">
               <td className="sticky left-0 z-10 p-3 font-medium text-gray-600 bg-gray-50 text-xs whitespace-nowrap border-r border-gray-400">
-                {slot}
+                <div className="font-semibold">{slot}</div>
+                {onToggleRowMerge && (
+                  <div className="mt-1">
+                    <button
+                      onClick={() => onToggleRowMerge(rowIndex)}
+                      className="px-1.5 py-0.5 text-[9px] font-medium text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 hover:border-indigo-300 rounded transition-colors"
+                      type="button"
+                    >
+                      {isRowMerged(rowIndex) ? "Split Row" : "Merge Row"}
+                    </button>
+                  </div>
+                )}
               </td>
               {days.map((_, colIndex) => {
                 if (shouldSkipCell(rowIndex, colIndex)) return null;
                 const rowSpan = getRowSpan(rowIndex, colIndex);
+                const colSpan = isRowMerged(rowIndex) ? days.length : 1;
                 
                 return (
                   <TimetableCell
@@ -202,6 +218,7 @@ const TimetableTable = ({
                     rowIndex={rowIndex}
                     colIndex={colIndex}
                     rowSpan={rowSpan}
+                    colSpan={colSpan}
                     batches={batches}
                     batchData={batchData}
                     conflicts={conflicts}

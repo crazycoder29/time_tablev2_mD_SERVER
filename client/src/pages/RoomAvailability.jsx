@@ -12,12 +12,8 @@ import {
   Building2,
 } from "lucide-react";
 import { roomService, scheduleService, timetableService } from "../firebase/services";
-import { DEFAULT_TIME_SLOTS, cleanTime, fetchDynamicTimeSlots } from "../utils/timetableUIHelpers";
+import { DEFAULT_TIME_SLOTS, cleanTime, fetchDynamicTimeSlots, fetchDynamicDays } from "../utils/timetableUIHelpers";
 import RoomAvailabilityExportModal from "../components/RoomAvailabilityExportModal";
-
-// ─── constants ────────────────────────────────────────────────────────────────
-const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat"];
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 const isSlotAvailable = (room, dayKey, time) =>
@@ -42,6 +38,9 @@ const setSlotAvailability = (room, dayKey, time, available) => {
 // ─── component ────────────────────────────────────────────────────────────────
 const RoomAvailability = ({ faculty, rooms: initialRooms, onRoomsUpdate }) => {
   const [timeSlots, setTimeSlots] = useState(DEFAULT_TIME_SLOTS);
+  const [days, setDays] = useState(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]);
+  const DAYS = days;
+  const DAY_KEYS = days.map(d => d.toLowerCase());
   // sidebar
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedRoomIndex, setSelectedRoomIndex] = useState(0);
@@ -77,11 +76,15 @@ const RoomAvailability = ({ faculty, rooms: initialRooms, onRoomsUpdate }) => {
   }, []);
 
   useEffect(() => {
-    const loadSlots = async () => {
-      const dynamicSlots = await fetchDynamicTimeSlots(timetableService);
+    const loadSlotsAndDays = async () => {
+      const [dynamicSlots, dynamicDays] = await Promise.all([
+        fetchDynamicTimeSlots(timetableService),
+        fetchDynamicDays(timetableService),
+      ]);
       setTimeSlots(dynamicSlots);
+      setDays(dynamicDays);
     };
-    loadSlots();
+    loadSlotsAndDays();
   }, []);
 
   const selectedRoom = rooms[selectedRoomIndex] ?? null;
@@ -551,6 +554,8 @@ const RoomAvailability = ({ faculty, rooms: initialRooms, onRoomsUpdate }) => {
         rooms={rooms}
         timeSlots={timeSlots}
         faculty={faculty}
+        DAYS={DAYS}
+        DAY_KEYS={DAY_KEYS}
       />
     </div>
   );

@@ -10,13 +10,23 @@ import { settingsService, timetableService, usersService } from "../firebase/ser
 import { useAuthStore } from "../store/authStore";
 
 const DEFAULT_TIME_SLOTS = [
-  "7:00 - 7:55", "7:55 - 8:50", "8:50 - 9:45",
-  "10:30 - 11:25", "11:25 - 12:20", "12:20 - 1:15",
-  "1:15 - 2:10", "2:10 - 3:05", "3:05 - 4:00", "4:00 - 4:55"
+  "7:00 AM - 7:55 AM", "7:55 AM - 8:50 AM", "8:50 AM - 9:45 AM",
+  "10:30 AM - 11:25 AM", "11:25 AM - 12:20 PM", "12:20 PM - 1:15 PM",
+  "1:15 PM - 2:10 PM", "2:10 PM - 3:05 PM", "3:05 PM - 4:00 PM", "4:00 PM - 4:55 PM"
 ];
 const ALL_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const EMPTY_PRESET = { class: "", branch: "", semester: "", type: "full-time", days: ["Mon","Tue","Wed","Thu","Fri","Sat"], timeSlots: [...DEFAULT_TIME_SLOTS] };
+
+const convert24to12 = (time24) => {
+  if (!time24) return "";
+  const [hourStr, minStr] = time24.split(":");
+  let hour = parseInt(hourStr, 10);
+  const ampm = hour >= 12 ? "PM" : "AM";
+  hour = hour % 12;
+  if (hour === 0) hour = 12;
+  return `${hour}:${minStr} ${ampm}`;
+};
 
 const EMPTY_USER_FORM = {
   name: "",
@@ -69,6 +79,8 @@ const AdminSettings = () => {
   const [presetSaving, setPresetSaving] = useState(false);
   const [expandedPreset, setExpandedPreset] = useState(null);
   const [newTimeSlot, setNewTimeSlot] = useState("");
+  const [newSlotStart, setNewSlotStart] = useState("");
+  const [newSlotEnd, setNewSlotEnd] = useState("");
   
   // New program form
   const [newProgram, setNewProgram] = useState("");
@@ -312,14 +324,20 @@ const AdminSettings = () => {
   };
 
   const addTimeSlot = (isEdit) => {
-    const slot = newTimeSlot.trim();
-    if (!slot) return;
+    if (!newSlotStart || !newSlotEnd) {
+      alert("Please select both start and end times.");
+      return;
+    }
+    const startStr = convert24to12(newSlotStart);
+    const endStr = convert24to12(newSlotEnd);
+    const slot = `${startStr} - ${endStr}`;
     if (isEdit) {
       setEditingPreset(prev => ({ ...prev, data: { ...prev.data, timeSlots: [...(prev.data.timeSlots || []), slot] } }));
     } else {
       setNewPreset(prev => ({ ...prev, timeSlots: [...prev.timeSlots, slot] }));
     }
-    setNewTimeSlot("");
+    setNewSlotStart("");
+    setNewSlotEnd("");
   };
 
   const removeTimeSlot = (idx, isEdit) => {
@@ -898,11 +916,21 @@ const AdminSettings = () => {
                         </span>
                       ))}
                     </div>
-                    <div className="flex gap-2 max-w-md">
-                      <input type="text" value={newTimeSlot} onChange={e => setNewTimeSlot(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addTimeSlot(false))}
-                        placeholder="Add time slot (e.g. 9:00 - 9:55)" className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm" />
-                      <button type="button" onClick={() => addTimeSlot(false)} className="px-3 py-1.5 text-sm bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200"><Plus className="w-4 h-4" /></button>
+                    <div className="flex flex-wrap items-center gap-2 max-w-md bg-purple-50/50 p-2.5 rounded-xl border border-purple-100">
+                      <div className="flex-1 min-w-[120px]">
+                        <span className="block text-[10px] font-bold text-purple-700 uppercase tracking-wider mb-1">Start Time</span>
+                        <input type="time" value={newSlotStart} onChange={e => setNewSlotStart(e.target.value)}
+                          className="w-full px-2.5 py-1.5 bg-white border border-purple-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                      </div>
+                      <div className="flex-1 min-w-[120px]">
+                        <span className="block text-[10px] font-bold text-purple-700 uppercase tracking-wider mb-1">End Time</span>
+                        <input type="time" value={newSlotEnd} onChange={e => setNewSlotEnd(e.target.value)}
+                          className="w-full px-2.5 py-1.5 bg-white border border-purple-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                      </div>
+                      <button type="button" onClick={() => addTimeSlot(false)}
+                        className="mt-5 p-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors shadow-sm flex items-center justify-center">
+                        <Plus className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
 
@@ -1010,11 +1038,21 @@ const AdminSettings = () => {
                                   </span>
                                 ))}
                               </div>
-                              <div className="flex gap-2">
-                                <input type="text" value={newTimeSlot} onChange={e => setNewTimeSlot(e.target.value)}
-                                  onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addTimeSlot(true))}
-                                  placeholder="e.g. 9:00 - 9:55" className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm" />
-                                <button onClick={() => addTimeSlot(true)} className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-lg"><Plus className="w-4 h-4" /></button>
+                              <div className="flex flex-wrap items-center gap-2 bg-purple-50/50 p-2.5 rounded-xl border border-purple-100">
+                                <div className="flex-1 min-w-[120px]">
+                                  <span className="block text-[10px] font-bold text-purple-700 uppercase tracking-wider mb-1">Start Time</span>
+                                  <input type="time" value={newSlotStart} onChange={e => setNewSlotStart(e.target.value)}
+                                    className="w-full px-2.5 py-1.5 bg-white border border-purple-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                                </div>
+                                <div className="flex-1 min-w-[120px]">
+                                  <span className="block text-[10px] font-bold text-purple-700 uppercase tracking-wider mb-1">End Time</span>
+                                  <input type="time" value={newSlotEnd} onChange={e => setNewSlotEnd(e.target.value)}
+                                    className="w-full px-2.5 py-1.5 bg-white border border-purple-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                                </div>
+                                <button type="button" onClick={() => addTimeSlot(true)}
+                                  className="mt-5 p-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors shadow-sm flex items-center justify-center">
+                                  <Plus className="w-4 h-4" />
+                                </button>
                               </div>
                             </div>
                             <div className="flex gap-2">

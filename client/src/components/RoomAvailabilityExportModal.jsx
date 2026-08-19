@@ -5,7 +5,6 @@ import {
   exportRoomAvailabilityToPdfMobile,
   exportRoomAvailabilityToExcel,
   exportRoomAvailabilityToExcelMobile,
-  DAYS,
   isAvailable,
 } from "../utils/roomAvailabilityExport";
 import { roomService } from "../firebase/services";
@@ -18,7 +17,15 @@ const sortByFaculty = (rooms) =>
     return (a.ID || "").localeCompare(b.ID || "");
   });
 
-const RoomAvailabilityExportModal = ({ isOpen, onClose, rooms = [], timeSlots = [], faculty = "" }) => {
+const RoomAvailabilityExportModal = ({ 
+  isOpen, 
+  onClose, 
+  rooms = [], 
+  timeSlots = [], 
+  faculty = "",
+  DAYS: propDays,
+  DAY_KEYS: propDayKeys
+}) => {
   const [exportFormat, setExportFormat] = useState("excel");
   const [exportScope, setExportScope] = useState("current"); // "current" | "all"
   const [exportSize, setExportSize] = useState("actual");    // "actual" | "mobile"
@@ -27,6 +34,35 @@ const RoomAvailabilityExportModal = ({ isOpen, onClose, rooms = [], timeSlots = 
   const [allRooms, setAllRooms] = useState([]);
   const [loadingAll, setLoadingAll] = useState(false);
   const [mobilePdfLayout, setMobilePdfLayout] = useState("multi"); // "single" | "multi"
+
+  const DAYS = useMemo(() => {
+    if (propDays) {
+      const map = {
+        "Mon": { key: "mon", label: "Mon", fullLabel: "MONDAY" },
+        "Tue": { key: "tue", label: "Tue", fullLabel: "TUESDAY" },
+        "Wed": { key: "wed", label: "Wed", fullLabel: "WEDNESDAY" },
+        "Thu": { key: "thu", label: "Thu", fullLabel: "THURSDAY" },
+        "Fri": { key: "fri", label: "Fri", fullLabel: "FRIDAY" },
+        "Sat": { key: "sat", label: "Sat", fullLabel: "SATURDAY" },
+        "Sun": { key: "sun", label: "Sun", fullLabel: "SUNDAY" }
+      };
+      return propDays.map(d => map[d] || { key: d.toLowerCase(), label: d, fullLabel: d.toUpperCase() });
+    }
+    
+    const hasSunday = (rooms || []).some(r => r?.availability?.day?.sun);
+    const list = [
+      { key: "mon", label: "Mon", fullLabel: "MONDAY" },
+      { key: "tue", label: "Tue", fullLabel: "TUESDAY" },
+      { key: "wed", label: "Wed", fullLabel: "WEDNESDAY" },
+      { key: "thu", label: "Thu", fullLabel: "THURSDAY" },
+      { key: "fri", label: "Fri", fullLabel: "FRIDAY" },
+      { key: "sat", label: "Sat", fullLabel: "SATURDAY" },
+    ];
+    if (hasSunday) {
+      list.push({ key: "sun", label: "Sun", fullLabel: "SUNDAY" });
+    }
+    return list;
+  }, [rooms, propDays]);
 
   const currentDay = DAYS[currentDayIndex];
 

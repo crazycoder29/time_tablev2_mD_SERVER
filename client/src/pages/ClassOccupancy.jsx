@@ -37,6 +37,9 @@ const ClassOccupancy = () => {
     { key: "Fri", label: "Friday" },
     { key: "Sat", label: "Saturday" },
   ];
+  if ((schedules || []).some(s => String(s.day).trim().toLowerCase() === "sun")) {
+    days.push({ key: "Sun", label: "Sunday" });
+  }
 
   /**
    * Generate a time slot based on its index (rowIndex).

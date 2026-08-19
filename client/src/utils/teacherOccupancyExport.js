@@ -7,7 +7,7 @@ import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { formatCellOccupancy, abbreviateText } from "./abbreviations";
 
-const cleanTime = (t) => String(t || "").replace(/\s+/g, "").trim();
+const cleanTime = (t) => String(t || "").replace(/\s+/g, "").trim().toLowerCase();
 
 /**
  * Build teacher occupancy grid for a specific day
@@ -63,6 +63,7 @@ export function exportTeacherOccupancyToPdf(teachers, schedules, timeSlots, file
     format: "a2"
   });
   
+  const hasSunday = (schedules || []).some(s => String(s.day).trim().toLowerCase() === "sun");
   const days = [
     { key: "Mon", label: "Monday" },
     { key: "Tue", label: "Tuesday" },
@@ -71,6 +72,9 @@ export function exportTeacherOccupancyToPdf(teachers, schedules, timeSlots, file
     { key: "Fri", label: "Friday" },
     { key: "Sat", label: "Saturday" },
   ];
+  if (hasSunday) {
+    days.push({ key: "Sun", label: "Sunday" });
+  }
   
   days.forEach((day, dayIndex) => {
     if (dayIndex > 0) {
@@ -168,6 +172,7 @@ export function exportTeacherOccupancyToPdf(teachers, schedules, timeSlots, file
 export function exportTeacherOccupancyToExcel(teachers, schedules, timeSlots, fileName = "teacher-occupancy") {
   const workbook = XLSX.utils.book_new();
   
+  const hasSunday = (schedules || []).some(s => String(s.day).trim().toLowerCase() === "sun");
   const days = [
     { key: "Mon", label: "Monday" },
     { key: "Tue", label: "Tuesday" },
@@ -176,6 +181,9 @@ export function exportTeacherOccupancyToExcel(teachers, schedules, timeSlots, fi
     { key: "Fri", label: "Friday" },
     { key: "Sat", label: "Saturday" },
   ];
+  if (hasSunday) {
+    days.push({ key: "Sun", label: "Sunday" });
+  }
   
   days.forEach((day) => {
     const { header, body } = buildTeacherOccupancyGrid(
@@ -467,6 +475,7 @@ export function exportIndividualTeacherOccupancyToPdf(teacher, schedules, timeSl
   doc.setLineWidth(0.5);
   doc.line(15, 32, 282, 32);
 
+  const hasSunday = (schedules || []).some(s => String(s.day).trim().toLowerCase() === "sun");
   const days = [
     { key: "Mon", label: "Monday" },
     { key: "Tue", label: "Tuesday" },
@@ -475,6 +484,9 @@ export function exportIndividualTeacherOccupancyToPdf(teacher, schedules, timeSl
     { key: "Fri", label: "Friday" },
     { key: "Sat", label: "Saturday" },
   ];
+  if (hasSunday) {
+    days.push({ key: "Sun", label: "Sunday" });
+  }
 
   const headers = ["Time Slot", ...days.map(d => d.label)];
 
@@ -570,6 +582,7 @@ export function exportIndividualTeacherOccupancyToExcel(teacher, schedules, time
   const teacherName = teacher.name || teacher.ID || "Unknown";
   const teacherId = String(teacher.unid || '');
 
+  const hasSunday = (schedules || []).some(s => String(s.day).trim().toLowerCase() === "sun");
   const days = [
     { key: "Mon", label: "Monday" },
     { key: "Tue", label: "Tuesday" },
@@ -578,6 +591,9 @@ export function exportIndividualTeacherOccupancyToExcel(teacher, schedules, time
     { key: "Fri", label: "Friday" },
     { key: "Sat", label: "Saturday" },
   ];
+  if (hasSunday) {
+    days.push({ key: "Sun", label: "Sunday" });
+  }
 
   const headers = ["Time Slot", ...days.map(d => d.label)];
 
