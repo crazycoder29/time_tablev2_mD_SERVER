@@ -46,6 +46,16 @@ const Timetable = () => {
   const [showBrowseModal, setShowBrowseModal] = useState(false);
   const [timeSlots, setTimeSlots] = useState(DEFAULT_TIME_SLOTS);
   const [days, setDays] = useState(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]);
+  const [daysByTable, setDaysByTable] = useState({});
+
+  useEffect(() => {
+    if (activeTable && days) {
+      setDaysByTable((prev) => ({
+        ...prev,
+        [activeTable]: days,
+      }));
+    }
+  }, [days, activeTable]);
 
   // Programs and branches from settings
   const [programs, setPrograms] = useState([]);
@@ -847,7 +857,7 @@ const Timetable = () => {
     return {
       tableId: tableLabel,
       meta: tableMeta,
-      days,
+      days: daysByTable[tableKey] || days || ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
       timeSlots,
       batchesByTable: {
         [tableLabel]: batches[tableKey] || {},

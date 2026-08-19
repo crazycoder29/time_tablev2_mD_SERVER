@@ -530,43 +530,28 @@ export function exportRoomOccupancyToPdfMobile(rooms, schedules, timeSlots, file
 
   if (layout === "single") {
     // Single page A4 portrait view
-    const doc = new jsPDF({
-      orientation: "portrait",
-      unit: "mm",
-      format: "a4"
-    });
-    
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.text("DAYALBAGH EDUCATIONAL INSTITUTE", 105, 10, { align: "center" });
-    
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.setTextColor(100, 116, 139);
-    doc.text("ENGINEERING FACULTY", 105, 14, { align: "center" });
-    
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.setTextColor(30, 41, 59);
-    doc.text("ROOM OCCUPANCY - MOBILE VIEW (SINGLE SHEET)", 105, 19, { align: "center" });
-
-    doc.setDrawColor(226, 232, 240);
-    doc.setLineWidth(0.3);
-    doc.line(6, 22, 204, 22);
-
     const { header, rows } = buildMobileRoomsOccupancyGrid(rooms, schedules, timeSlots);
 
     const tableBody = [];
     const processedDayGroups = new Set();
 
-    rows.forEach((row) => {
+    rows.forEach((row, rowIdx) => {
       const rowData = [];
       const dayValue = row[0];
       if (row.dayMerge && !processedDayGroups.has(dayValue)) {
         processedDayGroups.add(dayValue);
+
+        // Add a time subheader row for this day section if it's not the very first day
+        if (processedDayGroups.size > 1) {
+          const subHeaderRow = ["", "ROOM", "NAME", "CAP", ...timeSlots];
+          subHeaderRow.isDaySubHeader = true;
+          tableBody.push(subHeaderRow);
+        }
+
+        const extraSubHeaderCount = processedDayGroups.size > 1 ? 1 : 0;
         rowData.push({
           content: row.dayMerge.dayLabel.split('').join('\n'),
-          rowSpan: row.dayMerge.endRow - row.dayMerge.startRow + 1,
+          rowSpan: (row.dayMerge.endRow - row.dayMerge.startRow + 1) + extraSubHeaderCount,
           styles: { 
             halign: 'center',
             valign: 'middle',
@@ -580,73 +565,192 @@ export function exportRoomOccupancyToPdfMobile(rooms, schedules, timeSlots, file
       for (let i = 1; i < row.length; i++) {
         rowData.push(row[i]);
       }
+      rowData.isDayEnd = row.isDayEnd;
       tableBody.push(rowData);
+
+      // Add a spacer row between days
+      if (row.isDayEnd && rowIdx < rows.length - 1) {
+        const spacer = [];
+        spacer.push("");
+        for (let i = 1; i < row.length; i++) {
+          spacer.push("");
+        }
+        spacer.isSpacer = true;
+        tableBody.push(spacer);
+      }
     });
 
-    const availableHeight = 297 - 25 - 12;
-    const finalRowHeight = Math.max(1.2, Math.min(2.5, (availableHeight - 6) / tableBody.length));
-    const finalFontSize = Math.max(1.8, Math.min(2.5, finalRowHeight * 0.9));
-
     const pageWidth = 210;
-    const margins = 12;
+    const margins = 8; // 4mm left + 4mm right
     const availableWidth = pageWidth - margins;
     const numTimeslots = timeSlots.length;
-    const fixedColumnWidths = [8, 22, 15, 10];
+    const fixedColumnWidths = [7, 21, 14, 8];
     const fixedTotalWidth = fixedColumnWidths.reduce((sum, w) => sum + w, 0);
     const timeslotColumnWidth = (availableWidth - fixedTotalWidth) / numTimeslots;
 
-    const columnStyles = {
-      0: { cellWidth: fixedColumnWidths[0], halign: "center", fontSize: finalFontSize + 0.5, fontStyle: 'bold' },
-      1: { cellWidth: fixedColumnWidths[1], halign: "center", fontSize: finalFontSize },
-      2: { cellWidth: fixedColumnWidths[2], halign: "center", fontSize: finalFontSize },
-      3: { cellWidth: fixedColumnWidths[3], halign: "center", fontSize: finalFontSize }
-    };
-    for (let i = 0; i < numTimeslots; i++) {
-      columnStyles[4 + i] = {
-        cellWidth: timeslotColumnWidth,
-        halign: "center",
-        fontSize: finalFontSize - 0.2
+    const totalRows = tableBody.length;
+    const availableHeight = 270;
+    const baseRowHeight = availableHeight / Math.max(1, totalRows);
+    let doc = null;
+
+    // Test scaling from largest down to smallest to find the LARGEST readable font & padding that fits on EXACTLY 1 page
+    for (let step = 40; step >= 0; step--) {
+      const scale = 0.25 + (step / 40) * 1.75;
+      const testPaddingV = Math.max(0.05, Math.min(0.8, (baseRowHeight * 0.12) * scale));
+      const testPaddingH = Math.max(0.15, Math.min(1.0, (baseRowHeight * 0.2) * scale));
+      const testFontSize = Math.max(2.5, Math.min(8.5, (baseRowHeight * 1.6) * scale));
+
+      const testDoc = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4"
+      });
+
+      testDoc.setFont("helvetica", "bold");
+      testDoc.setFontSize(11);
+      testDoc.text("DAYALBAGH EDUCATIONAL INSTITUTE", 105, 7.5, { align: "center" });
+      
+      testDoc.setFont("helvetica", "bold");
+      testDoc.setFontSize(8);
+      testDoc.setTextColor(100, 116, 139);
+      testDoc.text("ENGINEERING FACULTY", 105, 11, { align: "center" });
+      
+      testDoc.setFont("helvetica", "bold");
+      testDoc.setFontSize(8.5);
+      testDoc.setTextColor(30, 41, 59);
+      testDoc.text("ROOM OCCUPANCY - MOBILE VIEW (SINGLE SHEET)", 105, 14.5, { align: "center" });
+
+      testDoc.setDrawColor(226, 232, 240);
+      testDoc.setLineWidth(0.3);
+      testDoc.line(4, 16.5, 206, 16.5);
+
+      const columnStyles = {
+        0: { cellWidth: fixedColumnWidths[0], halign: "center", fontSize: testFontSize + 0.4, fontStyle: 'bold' },
+        1: { cellWidth: fixedColumnWidths[1], halign: "center", fontSize: testFontSize },
+        2: { cellWidth: fixedColumnWidths[2], halign: "center", fontSize: testFontSize },
+        3: { cellWidth: fixedColumnWidths[3], halign: "center", fontSize: testFontSize }
       };
+      for (let i = 0; i < numTimeslots; i++) {
+        columnStyles[4 + i] = {
+          cellWidth: timeslotColumnWidth,
+          halign: "center",
+          fontSize: testFontSize - 0.2
+        };
+      }
+
+      autoTable(testDoc, {
+        head: [header],
+        body: tableBody,
+        startY: 18,
+        theme: "grid",
+        rowPageBreak: 'avoid',
+        tableWidth: availableWidth,
+        styles: {
+          fontSize: testFontSize,
+          fontStyle: "bold",
+          cellPadding: {
+            top: testPaddingV,
+            bottom: testPaddingV,
+            left: testPaddingH,
+            right: testPaddingH
+          },
+          overflow: "linebreak",
+          halign: "center",
+          valign: "middle",
+          lineWidth: 0.05,
+          lineColor: [226, 232, 240],
+          textColor: [15, 23, 42]
+        },
+        headStyles: {
+          fillColor: [30, 41, 59],
+          textColor: [255, 255, 255],
+          fontStyle: "bold",
+          halign: "center",
+          fontSize: testFontSize + 0.5,
+          cellPadding: {
+            top: Math.max(0.2, testPaddingV),
+            bottom: Math.max(0.2, testPaddingV),
+            left: testPaddingH,
+            right: testPaddingH
+          }
+        },
+        columnStyles: columnStyles,
+        didParseCell: (data) => {
+          if (data.row.raw.isSpacer) {
+            data.cell.styles.lineWidth = 0;
+            data.cell.styles.fillColor = [255, 255, 255];
+            data.cell.styles.cellPadding = { top: 0.1, bottom: 0.1, left: 0, right: 0 };
+            data.cell.styles.fontSize = 0.1;
+            return;
+          }
+          if (data.row.raw.isDaySubHeader) {
+            if (data.column.index >= 1) {
+              data.cell.styles.fillColor = [30, 41, 59];
+              data.cell.styles.textColor = [255, 255, 255];
+              data.cell.styles.fontStyle = "bold";
+              data.cell.styles.halign = "center";
+              data.cell.styles.cellPadding = { top: Math.max(0.15, testPaddingV), bottom: Math.max(0.15, testPaddingV), left: testPaddingH, right: testPaddingH };
+            }
+            return;
+          }
+          if (data.section === "body" && data.column.index > 3) {
+            if (data.cell.raw !== "—" && data.cell.raw !== "" && typeof data.cell.raw === 'string') {
+              data.cell.styles.fillColor = [219, 234, 254];
+            } else {
+              data.cell.styles.fillColor = [255, 255, 255];
+              data.cell.styles.textColor = [160, 160, 160];
+            }
+          }
+        },
+        didDrawCell: (data) => {
+          if (data.section !== "body") return;
+          if (data.row.raw.isSpacer) {
+            const d = data.doc;
+            d.setDrawColor(0, 0, 0);
+            d.setLineWidth(0.4);
+            const startX = data.cell.x;
+            const startY = data.cell.y + data.cell.height / 2;
+            const endX = data.cell.x + data.cell.width;
+            const endY = data.cell.y + data.cell.height / 2;
+            d.line(startX, startY, endX, endY);
+          } else {
+            const d = data.doc;
+            d.setDrawColor(0, 0, 0);
+            d.setLineWidth(0.22);
+            const startX = data.cell.x;
+            const startY = data.cell.y;
+            const width = data.cell.width;
+            const height = data.cell.height;
+
+            d.line(startX, startY + height, startX + width, startY + height);
+            d.line(startX + width, startY, startX + width, startY + height);
+            if (data.column.index === 0) {
+              d.line(startX, startY, startX, startY + height);
+            }
+          }
+        },
+        margin: { top: 18, bottom: 6, left: 4, right: 4 }
+      });
+
+      const numPages = testDoc.internal.getNumberOfPages();
+      const finalY = testDoc.lastAutoTable ? testDoc.lastAutoTable.finalY : 0;
+
+      if (numPages === 1 && finalY <= 289) {
+        doc = testDoc;
+        break;
+      }
+
+      if (step === 0 && !doc) {
+        doc = testDoc;
+      }
     }
 
-    autoTable(doc, {
-      head: [header],
-      body: tableBody,
-      startY: 25,
-      theme: "grid",
-      rowPageBreak: 'avoid',
-      tableWidth: availableWidth,
-      styles: {
-        fontSize: finalFontSize,
-        cellPadding: 0.2,
-        overflow: "linebreak",
-        halign: "center",
-        valign: "middle",
-        lineWidth: 0.05,
-        lineColor: [226, 232, 240],
-        textColor: [15, 23, 42]
-      },
-      headStyles: {
-        fillColor: [30, 41, 59],
-        textColor: [255, 255, 255],
-        fontStyle: "bold",
-        halign: "center",
-        fontSize: finalFontSize + 0.5,
-        cellPadding: 0.5
-      },
-      columnStyles: columnStyles,
-      didParseCell: (data) => {
-        if (data.section === "body" && data.column.index > 3) {
-          if (data.cell.raw !== "—" && data.cell.raw !== "" && typeof data.cell.raw === 'string') {
-            data.cell.styles.fillColor = [219, 234, 254];
-          } else {
-            data.cell.styles.fillColor = [255, 255, 255];
-            data.cell.styles.textColor = [160, 160, 160];
-          }
-        }
-      },
-      margin: { top: 25, bottom: 12, left: 6, right: 6 }
-    });
+    // Ensure document has strictly 1 page
+    if (doc) {
+      while (doc.internal.getNumberOfPages() > 1) {
+        doc.deletePage(doc.internal.getNumberOfPages());
+      }
+    }
 
     const totalPages = doc.internal.getNumberOfPages();
     for (let i = 1; i <= totalPages; i++) {
@@ -654,7 +758,7 @@ export function exportRoomOccupancyToPdfMobile(rooms, schedules, timeSlots, file
       doc.setFont("helvetica", "normal");
       doc.setFontSize(7);
       doc.setTextColor(150, 150, 150);
-      doc.text(`Page ${i} of ${totalPages}`, 6, 289);
+      doc.text(`Page ${i} of ${totalPages}`, 6, 292);
     }
     doc.save(`${fileName}.pdf`);
   } else {

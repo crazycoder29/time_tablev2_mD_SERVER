@@ -237,6 +237,19 @@ function gridToAoa(grid) {
  *
  * This uses the export grid format (time rows × weekday columns).
  */
+function calculateTimeColWidth(docInstance, grid, fontSize, cellPadding) {
+  docInstance.setFont("helvetica", "bold");
+  docInstance.setFontSize(fontSize);
+  let maxW = docInstance.getTextWidth("Time");
+  (grid.body || []).forEach((row) => {
+    const text = String(row[0] || "");
+    const w = docInstance.getTextWidth(text);
+    if (w > maxW) maxW = w;
+  });
+  // Extra safety margin of 18pt so time strings like "9:00 AM - 1:00 PM" never clip or wrap
+  return Math.ceil(maxW + cellPadding * 2 + 18);
+}
+
 export function exportTimetableToPdf({
   fileName,
   meta,
@@ -260,149 +273,188 @@ export function exportTimetableToPdf({
 
   const title = buildPdfTitle(meta, grid.tableId);
 
-  const doc = new jsPDF({
-    orientation: "landscape",
-    unit: "pt",
-    format: "a4",
-  });
-
   const marginX = 24;
-
-  // Branded Centered Header
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  doc.setTextColor(30, 41, 59);
-  doc.text("DAYALBAGH EDUCATIONAL INSTITUTE", 841.89 / 2, 28, { align: "center" });
-  
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.setTextColor(100, 116, 139);
-  doc.text("ENGINEERING FACULTY", 841.89 / 2, 42, { align: "center" });
-  
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  doc.setTextColor(30, 41, 59);
-  doc.text(title.toUpperCase(), 841.89 / 2, 60, { align: "center" });
-
-  doc.setDrawColor(226, 232, 240);
-  doc.setLineWidth(1);
-  doc.line(marginX, 68, 841.89 - marginX, 68);
-
   const numDays = Math.max(1, grid.head[0].length - 1);
-  const timeColW = 75;
-  const availableW = 841.89 - (marginX * 2) - timeColW;
-  const dayW = availableW / numDays;
+  const numRows = grid.body.length + 1;
+  const baseTargetRowHeight = Math.max(14, Math.min(32, 460 / numRows));
+  const baseFontSize = Math.min(9.5, Math.max(6.5, baseTargetRowHeight * 0.38));
+  const baseCellPadding = Math.min(6.0, Math.max(2.0, (baseTargetRowHeight - baseFontSize * 1.15) / 2));
 
-  const columnStylesConfig = {
-    0: { cellWidth: timeColW, fontStyle: "bold", fillColor: [248, 250, 252], textColor: [15, 23, 42], halign: "left" },
-  };
-  for (let c = 1; c <= numDays; c++) {
-    columnStylesConfig[c] = { cellWidth: dayW, halign: "left" };
+  let doc = null;
+
+  // Search from largest scale to smallest scale to find the best 1-page fit
+  for (let step = 30; step >= 0; step--) {
+    const scale = 0.25 + (step / 30) * 0.75;
+    const testFontSize = Math.max(5.0, Math.min(9.5, baseFontSize * scale));
+    const testCellPadding = Math.max(1.5, Math.min(6.0, baseCellPadding * scale));
+
+    const tempDoc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+    const timeColW = Math.max(85, calculateTimeColWidth(tempDoc, grid, testFontSize, testCellPadding));
+    const availableW = 841.89 - (marginX * 2) - timeColW;
+    const dayW = availableW / numDays;
+
+    const columnStylesConfig = {
+      0: { cellWidth: timeColW, fontStyle: "bold", fillColor: [248, 250, 252], textColor: [15, 23, 42], halign: "center", valign: "middle" },
+    };
+    for (let c = 1; c <= numDays; c++) {
+      columnStylesConfig[c] = { cellWidth: dayW, halign: "center", valign: "middle" };
+    }
+
+    const testDoc = new jsPDF({
+      orientation: "landscape",
+      unit: "pt",
+      format: "a4",
+    });
+
+    testDoc.setFont("helvetica", "bold");
+    testDoc.setFontSize(13);
+    testDoc.setTextColor(30, 41, 59);
+    testDoc.text("DAYALBAGH EDUCATIONAL INSTITUTE", 841.89 / 2, 28, { align: "center" });
+    
+    testDoc.setFont("helvetica", "bold");
+    testDoc.setFontSize(9.5);
+    testDoc.setTextColor(100, 116, 139);
+    testDoc.text("ENGINEERING FACULTY", 841.89 / 2, 42, { align: "center" });
+    
+    testDoc.setFont("helvetica", "bold");
+    testDoc.setFontSize(11);
+    testDoc.setTextColor(30, 41, 59);
+    testDoc.text(title.toUpperCase(), 841.89 / 2, 58, { align: "center" });
+
+    testDoc.setDrawColor(226, 232, 240);
+    testDoc.setLineWidth(0.75);
+    testDoc.line(marginX, 66, 841.89 - marginX, 66);
+
+    autoTable(testDoc, {
+      head: grid.head,
+      body: grid.body,
+      startY: 74,
+      theme: "grid",
+      rowPageBreak: 'avoid',
+      margin: { top: 74, bottom: 25, left: marginX, right: marginX },
+      styles: {
+        fontSize: testFontSize,
+        cellPadding: testCellPadding,
+        overflow: "linebreak",
+        halign: "center",
+        valign: "middle",
+        lineColor: [203, 213, 225],
+        lineWidth: 0.5,
+        textColor: [15, 23, 42],
+      },
+      headStyles: {
+        fontStyle: "bold",
+        halign: "center",
+        valign: "middle",
+        fillColor: [30, 41, 59],
+        textColor: [255, 255, 255],
+        lineColor: [203, 213, 225],
+        lineWidth: 0.5,
+        fontSize: testFontSize + 0.5,
+      },
+      columnStyles: columnStylesConfig,
+      alternateRowStyles: {
+        fillColor: [248, 250, 252],
+      },
+      didParseCell: (data) => {
+        if (data.section !== "body") return;
+        if (data.column.index === 0) return;
+
+        const raw = data.cell.raw;
+        if (!raw || typeof raw !== "object" || !Array.isArray(raw.subCells)) return;
+
+        const subCells = raw.subCells.filter(Boolean);
+        const n = subCells.length;
+        if (n === 0) return;
+
+        const pad = 2;
+        const fontSize = testFontSize;
+        testDoc.setFontSize(fontSize);
+        const colSpan = (raw && typeof raw === "object") ? (raw.colSpan || 1) : 1;
+        const cellWidth = dayW * colSpan;
+        const segMaxW = Math.max(1, cellWidth / n - pad * 2);
+
+        let maxLinesRequired = 0;
+        for (let i = 0; i < n; i++) {
+          const lines = String(subCells[i]).split("\n");
+          let totalLines = 0;
+          for (const l of lines) {
+            const wrapped = testDoc.splitTextToSize(l, segMaxW);
+            totalLines += (wrapped.length > 0 ? wrapped.length : 1);
+          }
+          if (totalLines > maxLinesRequired) maxLinesRequired = totalLines;
+        }
+
+        const placeholderLines = Array.from({ length: maxLinesRequired }, () => " ");
+        data.cell.text = placeholderLines;
+        data.cell.styles.textColor = [255, 255, 255];
+      },
+      didDrawCell: (data) => {
+        if (data.section !== "body") return;
+        if (data.column.index === 0) return;
+
+        const raw = data.cell.raw;
+        if (!raw || typeof raw !== "object" || !Array.isArray(raw.subCells)) return;
+
+        const subCells = raw.subCells.filter(Boolean);
+        const n = subCells.length;
+        if (n === 0) return;
+
+        const { cell } = data;
+        const pad = 2;
+        const fontSize = testFontSize;
+        const lineHeight = fontSize * 1.2;
+        const segW = cell.width / n;
+
+        if (n > 1) {
+          testDoc.setDrawColor(203, 213, 225);
+          testDoc.setLineWidth(0.5);
+          for (let i = 1; i < n; i += 1) {
+            const x = cell.x + segW * i;
+            testDoc.line(x, cell.y, x, cell.y + cell.height);
+          }
+        }
+
+        testDoc.setTextColor(15, 23, 42);
+        testDoc.setFontSize(fontSize);
+
+        for (let i = 0; i < n; i += 1) {
+          const segX = cell.x + segW * i;
+          const segMaxW = Math.max(1, segW - pad * 2);
+          const lines = String(subCells[i])
+            .split("\n")
+            .flatMap((line) => testDoc.splitTextToSize(line, segMaxW));
+
+          let cursorY = cell.y + pad + fontSize;
+          for (const line of lines) {
+            if (cursorY > cell.y + cell.height - pad) break;
+            testDoc.text(String(line), segX + segW / 2, cursorY, { maxWidth: segMaxW, align: "center" });
+            cursorY += lineHeight;
+          }
+        }
+      },
+    });
+
+    const numPages = testDoc.internal.getNumberOfPages();
+    const finalY = testDoc.lastAutoTable ? testDoc.lastAutoTable.finalY : 0;
+
+    // Check if it fits on a single page (A4 Landscape height is 595.28 pt)
+    if (numPages === 1 && finalY <= 570) {
+      doc = testDoc;
+      break;
+    }
+
+    if (step === 0 && !doc) {
+      doc = testDoc;
+    }
   }
 
-  autoTable(doc, {
-    head: grid.head,
-    body: grid.body,
-    startY: 78,
-    theme: "grid",
-    rowPageBreak: 'avoid',
-    styles: {
-      fontSize: 8,
-      cellPadding: 5,
-      overflow: "hidden",
-      valign: "top",
-      lineColor: [0, 0, 0],
-      lineWidth: 0.5,
-      textColor: [15, 23, 42],
-    },
-    headStyles: {
-      fontStyle: "bold",
-      valign: "middle",
-      fillColor: [30, 41, 59],
-      textColor: [255, 255, 255],
-    },
-    columnStyles: columnStylesConfig,
-    alternateRowStyles: {
-      fillColor: [248, 250, 252],
-    },
-    didParseCell: (data) => {
-      if (data.section !== "body") return;
-      if (data.column.index === 0) return;
-
-      const raw = data.cell.raw;
-      if (!raw || typeof raw !== "object" || !Array.isArray(raw.subCells)) return;
-
-      const subCells = raw.subCells.filter(Boolean);
-      const n = subCells.length;
-      if (n === 0) return;
-
-      const pad = 2; // smaller internal padding for subcells
-      const fontSize = 8;
-      doc.setFontSize(fontSize);
-      const colSpan = (raw && typeof raw === "object") ? (raw.colSpan || 1) : 1;
-      const cellWidth = dayW * colSpan;
-      const segMaxW = Math.max(1, cellWidth / n - pad * 2);
-
-      let maxLinesRequired = 0;
-      for (let i = 0; i < n; i++) {
-        const lines = String(subCells[i]).split("\n");
-        let totalLines = 0;
-        for (const l of lines) {
-          const wrapped = doc.splitTextToSize(l, segMaxW);
-          totalLines += (wrapped.length > 0 ? wrapped.length : 1);
-        }
-        if (totalLines > maxLinesRequired) maxLinesRequired = totalLines;
-      }
-
-      const placeholderLines = Array.from({ length: maxLinesRequired }, () => " ");
-      data.cell.text = placeholderLines;
-      data.cell.styles.textColor = [255, 255, 255];
-    },
-    didDrawCell: (data) => {
-      if (data.section !== "body") return;
-      if (data.column.index === 0) return;
-
-      const raw = data.cell.raw;
-      if (!raw || typeof raw !== "object" || !Array.isArray(raw.subCells)) return;
-
-      const subCells = raw.subCells.filter(Boolean);
-      const n = subCells.length;
-      if (n === 0) return;
-
-      const { cell } = data;
-      const pad = 2; // reduced padding specifically for splits
-      const fontSize = 8;
-      const lineHeight = fontSize * 1.2;
-      const segW = cell.width / n;
-
-      if (n > 1) {
-        doc.setDrawColor(0, 0, 0);
-        doc.setLineWidth(0.5);
-        for (let i = 1; i < n; i += 1) {
-          const x = cell.x + segW * i;
-          doc.line(x, cell.y, x, cell.y + cell.height);
-        }
-      }
-
-      doc.setTextColor(15, 23, 42);
-      doc.setFontSize(fontSize);
-
-      for (let i = 0; i < n; i += 1) {
-        const segX = cell.x + segW * i;
-        const segMaxW = Math.max(1, segW - pad * 2);
-        const lines = String(subCells[i])
-          .split("\n")
-          .flatMap((line) => doc.splitTextToSize(line, segMaxW));
-
-        let cursorY = cell.y + pad + fontSize;
-        for (const line of lines) {
-          if (cursorY > cell.y + cell.height - pad) break;
-          doc.text(String(line), segX + pad, cursorY, { maxWidth: segMaxW });
-          cursorY += lineHeight;
-        }
-      }
-    },
-  });
+  // Ensure document has strictly 1 page
+  if (doc) {
+    while (doc.internal.getNumberOfPages() > 1) {
+      doc.deletePage(doc.internal.getNumberOfPages());
+    }
+  }
 
   // Footer & Watermark
   const totalPages = doc.internal.getNumberOfPages();
@@ -441,56 +493,176 @@ export function exportTimetablesToPdf({ fileName, meta, tables }) {
 
     // Branded Centered Header
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
+    doc.setFontSize(13);
     doc.setTextColor(30, 41, 59);
     doc.text("DAYALBAGH EDUCATIONAL INSTITUTE", 841.89 / 2, 28, { align: "center" });
     
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
+    doc.setFontSize(9.5);
     doc.setTextColor(100, 116, 139);
     doc.text("ENGINEERING FACULTY", 841.89 / 2, 42, { align: "center" });
     
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
+    doc.setFontSize(11);
     doc.setTextColor(30, 41, 59);
-    doc.text(title.toUpperCase(), 841.89 / 2, 60, { align: "center" });
+    doc.text(title.toUpperCase(), 841.89 / 2, 58, { align: "center" });
 
     doc.setDrawColor(226, 232, 240);
-    doc.setLineWidth(1);
-    doc.line(marginX, 68, 841.89 - marginX, 68);
+    doc.setLineWidth(0.75);
+    doc.line(marginX, 66, 841.89 - marginX, 66);
 
     const numDays = Math.max(1, grid.head[0].length - 1);
-    const timeColW = 75;
-    const availableW = 841.89 - (marginX * 2) - timeColW;
-    const dayW = availableW / numDays;
+    const numRows = grid.body.length + 1;
+    const baseTargetRowHeight = Math.max(14, Math.min(32, 460 / numRows));
+    const baseFontSize = Math.min(9.5, Math.max(6.5, baseTargetRowHeight * 0.38));
+    const baseCellPadding = Math.min(6.0, Math.max(2.0, (baseTargetRowHeight - baseFontSize * 1.15) / 2));
+
+    let bestFontSize = baseFontSize;
+    let bestCellPadding = baseCellPadding;
+    let bestTimeColW = 85;
+    let bestDayW = (841.89 - marginX * 2 - bestTimeColW) / numDays;
+
+    for (let step = 30; step >= 0; step--) {
+      const scale = 0.25 + (step / 30) * 0.75;
+      const testFontSize = Math.max(5.0, Math.min(9.5, baseFontSize * scale));
+      const testCellPadding = Math.max(1.5, Math.min(6.0, baseCellPadding * scale));
+
+      const tempDoc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+      const timeColW = Math.max(85, calculateTimeColWidth(tempDoc, grid, testFontSize, testCellPadding));
+      const availableW = 841.89 - (marginX * 2) - timeColW;
+      const dayW = availableW / numDays;
+
+      const columnStylesConfig = {
+        0: { cellWidth: timeColW, fontStyle: "bold", fillColor: [248, 250, 252], textColor: [15, 23, 42], halign: "center", valign: "middle" },
+      };
+      for (let c = 1; c <= numDays; c++) {
+        columnStylesConfig[c] = { cellWidth: dayW, halign: "center", valign: "middle" };
+      }
+
+      const testDoc = new jsPDF({
+        orientation: "landscape",
+        unit: "pt",
+        format: "a4",
+      });
+
+      autoTable(testDoc, {
+        head: grid.head,
+        body: grid.body,
+        startY: 74,
+        theme: "grid",
+        rowPageBreak: 'avoid',
+        margin: { top: 74, bottom: 25, left: marginX, right: marginX },
+        styles: {
+          fontSize: testFontSize,
+          cellPadding: testCellPadding,
+          overflow: "linebreak",
+          halign: "center",
+          valign: "middle",
+          lineColor: [203, 213, 225],
+          lineWidth: 0.5,
+          textColor: [15, 23, 42],
+        },
+        headStyles: {
+          fontStyle: "bold",
+          halign: "center",
+          valign: "middle",
+          fillColor: [30, 41, 59],
+          textColor: [255, 255, 255],
+          lineColor: [203, 213, 225],
+          lineWidth: 0.5,
+          fontSize: testFontSize + 0.5,
+        },
+        columnStyles: columnStylesConfig,
+        alternateRowStyles: {
+          fillColor: [248, 250, 252],
+        },
+        didParseCell: (data) => {
+          if (data.section !== "body") return;
+          if (data.column.index === 0) return;
+
+          const raw = data.cell.raw;
+          if (!raw || typeof raw !== "object" || !Array.isArray(raw.subCells)) return;
+
+          const subCells = raw.subCells.filter(Boolean);
+          const n = subCells.length;
+          if (n === 0) return;
+
+          const pad = 2;
+          const fontSize = testFontSize;
+          testDoc.setFontSize(fontSize);
+          const colSpan = (raw && typeof raw === "object") ? (raw.colSpan || 1) : 1;
+          const cellWidth = dayW * colSpan;
+          const segMaxW = Math.max(1, cellWidth / n - pad * 2);
+
+          let maxLinesRequired = 0;
+          for (let i = 0; i < n; i++) {
+            const lines = String(subCells[i]).split("\n");
+            let totalLines = 0;
+            for (const l of lines) {
+              const wrapped = testDoc.splitTextToSize(l, segMaxW);
+              totalLines += (wrapped.length > 0 ? wrapped.length : 1);
+            }
+            if (totalLines > maxLinesRequired) maxLinesRequired = totalLines;
+          }
+
+          const placeholderLines = Array.from({ length: maxLinesRequired }, () => " ");
+          data.cell.text = placeholderLines;
+          data.cell.styles.textColor = [255, 255, 255];
+        },
+      });
+
+      const numPages = testDoc.internal.getNumberOfPages();
+      const finalY = testDoc.lastAutoTable ? testDoc.lastAutoTable.finalY : 0;
+
+      if (numPages === 1 && finalY <= 570) {
+        bestFontSize = testFontSize;
+        bestCellPadding = testCellPadding;
+        bestTimeColW = timeColW;
+        bestDayW = dayW;
+        break;
+      }
+
+      if (step === 0) {
+        bestFontSize = testFontSize;
+        bestCellPadding = testCellPadding;
+        bestTimeColW = timeColW;
+        bestDayW = dayW;
+      }
+    }
 
     const columnStylesConfig = {
-      0: { cellWidth: timeColW, fontStyle: "bold", fillColor: [248, 250, 252], textColor: [15, 23, 42], halign: "left" },
+      0: { cellWidth: bestTimeColW, fontStyle: "bold", fillColor: [248, 250, 252], textColor: [15, 23, 42], halign: "center", valign: "middle" },
     };
     for (let c = 1; c <= numDays; c++) {
-      columnStylesConfig[c] = { cellWidth: dayW, halign: "left" };
+      columnStylesConfig[c] = { cellWidth: bestDayW, halign: "center", valign: "middle" };
     }
 
     autoTable(doc, {
       head: grid.head,
       body: grid.body,
-      startY: 78,
+      startY: 74,
       theme: "grid",
       rowPageBreak: 'avoid',
+      margin: { top: 74, bottom: 25, left: marginX, right: marginX },
       styles: {
-        fontSize: 8,
-        cellPadding: 5,
-        overflow: "hidden",
-        valign: "top",
-        lineColor: [0, 0, 0],
+        fontSize: bestFontSize,
+        cellPadding: bestCellPadding,
+        overflow: "linebreak",
+        halign: "center",
+        valign: "middle",
+        lineColor: [203, 213, 225],
         lineWidth: 0.5,
         textColor: [15, 23, 42],
       },
       headStyles: {
         fontStyle: "bold",
+        halign: "center",
         valign: "middle",
         fillColor: [30, 41, 59],
         textColor: [255, 255, 255],
+        lineColor: [203, 213, 225],
+        lineWidth: 0.5,
+        fontSize: bestFontSize + 0.5,
       },
       columnStyles: columnStylesConfig,
       alternateRowStyles: {
@@ -507,11 +679,11 @@ export function exportTimetablesToPdf({ fileName, meta, tables }) {
         const n = subCells.length;
         if (n === 0) return;
 
-        const pad = 2; // smaller internal padding for subcells
-        const fontSize = 8;
+        const pad = 2;
+        const fontSize = bestFontSize;
         doc.setFontSize(fontSize);
         const colSpan = (raw && typeof raw === "object") ? (raw.colSpan || 1) : 1;
-        const cellWidth = dayW * colSpan;
+        const cellWidth = bestDayW * colSpan;
         const segMaxW = Math.max(1, cellWidth / n - pad * 2);
 
         let maxLinesRequired = 0;
@@ -541,13 +713,13 @@ export function exportTimetablesToPdf({ fileName, meta, tables }) {
         if (n === 0) return;
 
         const { cell } = data;
-        const pad = 2; // reduced padding specifically for splits
-        const fontSize = 8;
+        const pad = 2;
+        const fontSize = bestFontSize;
         const lineHeight = fontSize * 1.2;
         const segW = cell.width / n;
 
         if (n > 1) {
-          doc.setDrawColor(0, 0, 0);
+          doc.setDrawColor(203, 213, 225);
           doc.setLineWidth(0.5);
           for (let i = 1; i < n; i += 1) {
             const x = cell.x + segW * i;
@@ -568,7 +740,7 @@ export function exportTimetablesToPdf({ fileName, meta, tables }) {
           let cursorY = cell.y + pad + fontSize;
           for (const line of lines) {
             if (cursorY > cell.y + cell.height - pad) break;
-            doc.text(String(line), segX + pad, cursorY, { maxWidth: segMaxW });
+            doc.text(String(line), segX + segW / 2, cursorY, { maxWidth: segMaxW, align: "center" });
             cursorY += lineHeight;
           }
         }

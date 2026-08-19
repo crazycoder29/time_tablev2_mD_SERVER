@@ -794,22 +794,24 @@ export function exportClassOccupancyToPdfMobile(classes, schedules, timeSlots, f
     });
 
     const pageWidth = 210;
-    const margins = 12;
+    const margins = 8; // 4mm left + 4mm right
     const availableWidth = pageWidth - margins;
     const numTimeslots = timeSlots.length;
-    const fixedColumnWidths = [8, 22, 12, 8];
+    const fixedColumnWidths = [7, 21, 11, 7];
     const fixedTotalWidth = fixedColumnWidths.reduce((sum, w) => sum + w, 0);
     const timeslotColumnWidth = (availableWidth - fixedTotalWidth) / numTimeslots;
 
     const totalRows = tableBody.length;
-    const baseRowHeight = 260 / Math.max(1, totalRows);
+    const availableHeight = 270;
+    const baseRowHeight = availableHeight / Math.max(1, totalRows);
     let doc = null;
 
-    // Test scaling from 0.1 up to 2.2 to find the LARGEST font & padding that fits on EXACTLY 1 page
-    for (let step = 0; step < 35; step++) {
-      const scale = 0.1 + (step / 34) * 2.1;
-      const testPadding = Math.max(0.01, Math.min(1.2, (baseRowHeight * 0.22) * scale));
-      const testFontSize = Math.max(1.2, Math.min(8.0, (baseRowHeight * 1.3) * scale));
+    // Test scaling from largest down to smallest to find the LARGEST readable font & padding that fits on EXACTLY 1 page
+    for (let step = 40; step >= 0; step--) {
+      const scale = 0.25 + (step / 40) * 1.75;
+      const testPaddingV = Math.max(0.05, Math.min(0.8, (baseRowHeight * 0.12) * scale));
+      const testPaddingH = Math.max(0.15, Math.min(1.0, (baseRowHeight * 0.2) * scale));
+      const testFontSize = Math.max(2.5, Math.min(8.5, (baseRowHeight * 1.6) * scale));
 
       const testDoc = new jsPDF({
         orientation: "portrait",
@@ -819,24 +821,24 @@ export function exportClassOccupancyToPdfMobile(classes, schedules, timeSlots, f
 
       testDoc.setFont("helvetica", "bold");
       testDoc.setFontSize(11);
-      testDoc.text("DAYALBAGH EDUCATIONAL INSTITUTE", 105, 10, { align: "center" });
+      testDoc.text("DAYALBAGH EDUCATIONAL INSTITUTE", 105, 7.5, { align: "center" });
+      
+      testDoc.setFont("helvetica", "bold");
+      testDoc.setFontSize(8);
+      testDoc.setTextColor(100, 116, 139);
+      testDoc.text("ENGINEERING FACULTY", 105, 11, { align: "center" });
       
       testDoc.setFont("helvetica", "bold");
       testDoc.setFontSize(8.5);
-      testDoc.setTextColor(100, 116, 139);
-      testDoc.text("ENGINEERING FACULTY", 105, 13.5, { align: "center" });
-      
-      testDoc.setFont("helvetica", "bold");
-      testDoc.setFontSize(9);
       testDoc.setTextColor(30, 41, 59);
-      testDoc.text("CLASS OCCUPANCY - MOBILE VIEW (SINGLE SHEET)", 105, 17.5, { align: "center" });
+      testDoc.text("CLASS OCCUPANCY - MOBILE VIEW (SINGLE SHEET)", 105, 14.5, { align: "center" });
 
       testDoc.setDrawColor(226, 232, 240);
       testDoc.setLineWidth(0.3);
-      testDoc.line(6, 20, 204, 20);
+      testDoc.line(4, 16.5, 206, 16.5);
 
       const columnStyles = {
-        0: { cellWidth: fixedColumnWidths[0], halign: "center", fontSize: testFontSize + 0.5, fontStyle: 'bold' },
+        0: { cellWidth: fixedColumnWidths[0], halign: "center", fontSize: testFontSize + 0.4, fontStyle: 'bold' },
         1: { cellWidth: fixedColumnWidths[1], halign: "center", fontSize: testFontSize },
         2: { cellWidth: fixedColumnWidths[2], halign: "center", fontSize: testFontSize },
         3: { cellWidth: fixedColumnWidths[3], halign: "center", fontSize: testFontSize }
@@ -852,7 +854,7 @@ export function exportClassOccupancyToPdfMobile(classes, schedules, timeSlots, f
       autoTable(testDoc, {
         head: [header],
         body: tableBody,
-        startY: 22,
+        startY: 18,
         theme: "grid",
         rowPageBreak: 'avoid',
         tableWidth: availableWidth,
@@ -860,10 +862,10 @@ export function exportClassOccupancyToPdfMobile(classes, schedules, timeSlots, f
           fontSize: testFontSize,
           fontStyle: "bold",
           cellPadding: {
-            top: testPadding,
-            bottom: testPadding,
-            left: Math.max(0.2, testPadding * 1.1),
-            right: Math.max(0.2, testPadding * 1.1)
+            top: testPaddingV,
+            bottom: testPaddingV,
+            left: testPaddingH,
+            right: testPaddingH
           },
           overflow: "linebreak",
           halign: "center",
@@ -878,15 +880,20 @@ export function exportClassOccupancyToPdfMobile(classes, schedules, timeSlots, f
           fontStyle: "bold",
           halign: "center",
           fontSize: testFontSize + 0.5,
-          cellPadding: Math.max(0.25, testPadding)
+          cellPadding: {
+            top: Math.max(0.2, testPaddingV),
+            bottom: Math.max(0.2, testPaddingV),
+            left: testPaddingH,
+            right: testPaddingH
+          }
         },
         columnStyles: columnStyles,
         didParseCell: (data) => {
           if (data.row.raw.isSpacer) {
             data.cell.styles.lineWidth = 0;
             data.cell.styles.fillColor = [255, 255, 255];
-            data.cell.styles.cellPadding = { top: 0.5, bottom: 0.5, left: 0, right: 0 };
-            data.cell.styles.fontSize = 1;
+            data.cell.styles.cellPadding = { top: 0.1, bottom: 0.1, left: 0, right: 0 };
+            data.cell.styles.fontSize = 0.1;
             return;
           }
           if (data.row.raw.isDaySubHeader) {
@@ -895,6 +902,7 @@ export function exportClassOccupancyToPdfMobile(classes, schedules, timeSlots, f
               data.cell.styles.textColor = [255, 255, 255];
               data.cell.styles.fontStyle = "bold";
               data.cell.styles.halign = "center";
+              data.cell.styles.cellPadding = { top: Math.max(0.15, testPaddingV), bottom: Math.max(0.15, testPaddingV), left: testPaddingH, right: testPaddingH };
             }
             return;
           }
@@ -955,20 +963,19 @@ export function exportClassOccupancyToPdfMobile(classes, schedules, timeSlots, f
             }
           }
         },
-        margin: { top: 22, bottom: 12, left: 6, right: 6 }
+        margin: { top: 18, bottom: 6, left: 4, right: 4 }
       });
 
       const numPages = testDoc.internal.getNumberOfPages();
       const finalY = testDoc.lastAutoTable ? testDoc.lastAutoTable.finalY : 0;
 
-      if (step === 0) {
-        doc = testDoc; // Set fallback at minimum scale
+      if (numPages === 1 && finalY <= 289) {
+        doc = testDoc;
+        break; // Found the LARGEST scale that fits on exactly 1 page!
       }
 
-      if (numPages === 1 && finalY <= 284) {
-        doc = testDoc; // Keep updated with the best 1-page fit
-      } else {
-        if (step > 0 && doc) break; // Exceeded 1 page, stop and use previous 1-page doc!
+      if (step === 0 && !doc) {
+        doc = testDoc;
       }
     }
 
@@ -985,7 +992,7 @@ export function exportClassOccupancyToPdfMobile(classes, schedules, timeSlots, f
       doc.setFont("helvetica", "normal");
       doc.setFontSize(7);
       doc.setTextColor(150, 150, 150);
-      doc.text(`Page ${i} of ${totalPages}`, 6, 289);
+      doc.text(`Page ${i} of ${totalPages}`, 6, 292);
     }
     doc.save(`${fileName}.pdf`);
   } else {
