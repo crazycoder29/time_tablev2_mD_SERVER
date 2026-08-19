@@ -338,9 +338,10 @@ export function exportTimetableToPdf({
 
       const pad = 2; // smaller internal padding for subcells
       const fontSize = 8;
-      // Use doc sizing to calculate required vertical height accurately
       doc.setFontSize(fontSize);
-      const segMaxW = Math.max(1, data.cell.width / n - pad * 2);
+      const colSpan = (raw && typeof raw === "object") ? (raw.colSpan || 1) : 1;
+      const cellWidth = dayW * colSpan;
+      const segMaxW = Math.max(1, cellWidth / n - pad * 2);
 
       let maxLinesRequired = 0;
       for (let i = 0; i < n; i++) {
@@ -509,7 +510,9 @@ export function exportTimetablesToPdf({ fileName, meta, tables }) {
         const pad = 2; // smaller internal padding for subcells
         const fontSize = 8;
         doc.setFontSize(fontSize);
-        const segMaxW = Math.max(1, data.cell.width / n - pad * 2);
+        const colSpan = (raw && typeof raw === "object") ? (raw.colSpan || 1) : 1;
+        const cellWidth = dayW * colSpan;
+        const segMaxW = Math.max(1, cellWidth / n - pad * 2);
 
         let maxLinesRequired = 0;
         for (let i = 0; i < n; i++) {
