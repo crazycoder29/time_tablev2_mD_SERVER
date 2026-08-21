@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException, Depends
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models.models import CourseCreate, CourseOut
-from app.core.database import courses_collection
-from app.services.dependencies import get_current_user, require_role
+from app.core.database import FacultyCollections
+from app.services.dependencies import get_current_user, require_role, get_faculty_context
 from app.routes.audit_logs import log_action
 
 router = APIRouter(prefix="/api/courses", tags=["courses"])
@@ -29,8 +29,8 @@ def course_to_out(doc: dict) -> CourseOut:
 
 
 @router.get("/public-all", response_model=list[CourseOut])
-async def list_public_courses():
-    courses = await courses_collection.find().to_list(length=None)
+async def list_public_courses(fc: FacultyCollections = Depends(get_faculty_context)):
+    courses = await fc.courses.find().to_list(length=None)
     return [course_to_out(c) for c in courses]
 
 
@@ -40,6 +40,7 @@ async def list_courses(
     department: str | None = None,
     semester: str | None = None,
     user: dict = Depends(get_current_user),
+    fc: FacultyCollections = Depends(get_faculty_context),
 ):
     query = {}
     if faculty:
@@ -48,13 +49,17 @@ async def list_courses(
         query["department"] = {"$regex": f"^{department}$", "$options": "i"}
     if semester:
         query["semester"] = {"$regex": f"^{semester}$", "$options": "i"}
-    courses = await courses_collection.find(query).to_list(length=None)
+    courses = await fc.courses.find(query).to_list(length=None)
     return [course_to_out(c) for c in courses]
 
 
 @router.get("/departments", response_model=list[str])
-async def list_departments(faculty: str, user: dict = Depends(get_current_user)):
-    departments = await courses_collection.distinct(
+async def list_departments(
+    faculty: str,
+    user: dict = Depends(get_current_user),
+    fc: FacultyCollections = Depends(get_faculty_context),
+):
+    departments = await fc.courses.distinct(
         "department", {"faculty": {"$regex": f"^{faculty}$", "$options": "i"}}
     )
     return sorted(d for d in departments if d)
@@ -65,8 +70,9 @@ async def list_semesters(
     faculty: str,
     department: str,
     user: dict = Depends(get_current_user),
+    fc: FacultyCollections = Depends(get_faculty_context),
 ):
-    semesters = await courses_collection.distinct(
+    semesters = await fc.courses.distinct(
         "semester",
         {
             "faculty": {"$regex": f"^{faculty}$", "$options": "i"},
@@ -79,27 +85,27 @@ async def list_semesters(
 @router.post("/split-batches", response_model=list[CourseOut])
 async def split_course_batches(
     payload: dict,
-    user: dict = Depends(require_role("admin", "tt_incharge", "hod")),
+    user: dict = Depends(require_role("admin", "sub_admin", "tt_incharge", "hod")),
+    fc: FacultyCollections = Depends(get_faculty_context),
 ):
     course_unid = payload.get("courseUnid")
     batches = payload.get("batches", ["B1", "B2"])
     if not course_unid:
         raise HTTPException(status_code=400, detail="courseUnid is required")
 
-    parent = await courses_collection.find_one({
+    parent = await fc.courses.find_one({
         "$or": [{"_id": course_unid}, {"unid": course_unid}, {"unid": str(course_unid)}]
     })
     if not parent:
         raise HTTPException(status_code=404, detail="Parent course not found")
 
     # Mark parent as having batches
-    await courses_collection.update_one(
+    await fc.courses.update_one(
         {"_id": parent["_id"]},
         {"$set": {"hasBatches": True, "batches": batches}}
     )
 
     created_courses = []
-    now_ms = int(datetime.utcnow().timestamp() * 1000)
 
     for idx, b_name in enumerate(batches):
         b_unid = f"{parent['unid']}_b_{b_name}"
@@ -126,28 +132,29 @@ async def split_course_batches(
             "parentCourseId": parent["unid"],
         }
 
-        existing_b = await courses_collection.find_one({"_id": b_unid})
+        existing_b = await fc.courses.find_one({"_id": b_unid})
         if existing_b:
-            await courses_collection.update_one({"_id": b_unid}, {"$set": b_doc})
+            await fc.courses.update_one({"_id": b_unid}, {"$set": b_doc})
         else:
-            await courses_collection.insert_one(b_doc)
+            await fc.courses.insert_one(b_doc)
         
         created_courses.append(course_to_out(b_doc))
 
     # Remove standalone parent course so ONLY separate batch courses remain
     if not parent.get("batchName"):
-        await courses_collection.delete_one({"_id": parent["_id"]})
+        await fc.courses.delete_one({"_id": parent["_id"]})
 
-    await log_action(user, "split_course_batches", f"Split course {parent.get('name')} into {len(batches)} batch courses")
+    await log_action(user, "split_course_batches", f"Split course {parent.get('name')} into {len(batches)} batch courses in '{fc.slug}'")
     return created_courses
 
 
 @router.post("", response_model=CourseOut, status_code=201)
 async def upsert_course(
     payload: CourseCreate,
-    user: dict = Depends(require_role("admin", "tt_incharge", "hod")),
+    user: dict = Depends(require_role("admin", "sub_admin", "tt_incharge", "hod")),
+    fc: FacultyCollections = Depends(get_faculty_context),
 ):
-    unid = payload.unid or int(datetime.utcnow().timestamp() * 1000)
+    unid = payload.unid or int(datetime.now(timezone.utc).timestamp() * 1000)
 
     doc = {
         "_id": unid,
@@ -167,33 +174,38 @@ async def upsert_course(
         "parentCourseId": payload.parentCourseId,
     }
 
-    existing = await courses_collection.find_one({
+    existing = await fc.courses.find_one({
         "$or": [{"_id": unid}, {"unid": unid}, {"unid": str(unid)}]
     })
     if existing:
         actual_id = existing["_id"]
         update_fields = {k: v for k, v in doc.items() if k != "_id"}
-        await courses_collection.update_one({"_id": actual_id}, {"$set": update_fields})
+        await fc.courses.update_one({"_id": actual_id}, {"$set": update_fields})
     else:
-        await courses_collection.insert_one(doc)
+        await fc.courses.insert_one(doc)
 
-    saved = await courses_collection.find_one({
+    saved = await fc.courses.find_one({
         "$or": [{"_id": unid}, {"unid": unid}, {"unid": str(unid)}]
     })
     course_label = saved.get("code") or saved.get("name")
-    await log_action(user, "upsert_course", f"Course {course_label} updated/created")
+    await log_action(user, "upsert_course", f"Course {course_label} updated/created in '{fc.slug}'")
     return course_to_out(saved)
 
+
 @router.delete("/{unid_str}", status_code=204)
-async def delete_course(unid_str: str, user: dict = Depends(require_role("admin", "tt_incharge", "hod"))):
+async def delete_course(
+    unid_str: str,
+    user: dict = Depends(require_role("admin", "sub_admin", "tt_incharge", "hod")),
+    fc: FacultyCollections = Depends(get_faculty_context),
+):
     try:
         unid = int(unid_str)
     except ValueError:
         unid = unid_str
-        
-    result = await courses_collection.delete_many({
+
+    result = await fc.courses.delete_many({
         "$or": [{"_id": unid}, {"unid": unid}, {"unid": str(unid)}]
     })
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Course not found")
-    await log_action(user, "delete_course", f"Course ID {unid} deleted")
+    await log_action(user, "delete_course", f"Course ID {unid} deleted in '{fc.slug}'")

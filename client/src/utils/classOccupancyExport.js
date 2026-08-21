@@ -5,6 +5,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
+import { getExportHeader } from "./exportSettings";
 
 const cleanTime = (t) => String(t || "").replace(/\s+/g, "").trim().toLowerCase();
 
@@ -250,16 +251,20 @@ export function exportClassOccupancyToPdf(classes, schedules, timeSlots, fileNam
       doc.addPage();
     }
 
+    const exportHeader = getExportHeader();
+    const instName = (exportHeader.instituteName || "DAYALBAGH EDUCATIONAL INSTITUTE").toUpperCase();
+    const facName = (exportHeader.facultyName || "ENGINEERING FACULTY").toUpperCase();
+
     // Header
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
     doc.setTextColor(30, 41, 59);
-    doc.text("DAYALBAGH EDUCATIONAL INSTITUTE", 297, 12, { align: "center" });
+    doc.text(instName, 297, 12, { align: "center" });
     
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
     doc.setTextColor(100, 116, 139);
-    doc.text("ENGINEERING FACULTY", 297, 17, { align: "center" });
+    doc.text(facName, 297, 17, { align: "center" });
     
     doc.setFont("helvetica", "bold");
     doc.setFontSize(13);
@@ -819,14 +824,18 @@ export function exportClassOccupancyToPdfMobile(classes, schedules, timeSlots, f
         format: "a4"
       });
 
+      const exportHeader = getExportHeader();
+      const instName = (exportHeader.instituteName || "DAYALBAGH EDUCATIONAL INSTITUTE").toUpperCase();
+      const facName = (exportHeader.facultyName || "ENGINEERING FACULTY").toUpperCase();
+
       testDoc.setFont("helvetica", "bold");
       testDoc.setFontSize(11);
-      testDoc.text("DAYALBAGH EDUCATIONAL INSTITUTE", 105, 7.5, { align: "center" });
+      testDoc.text(instName, 105, 7.5, { align: "center" });
       
       testDoc.setFont("helvetica", "bold");
       testDoc.setFontSize(8);
       testDoc.setTextColor(100, 116, 139);
-      testDoc.text("ENGINEERING FACULTY", 105, 11, { align: "center" });
+      testDoc.text(facName, 105, 11, { align: "center" });
       
       testDoc.setFont("helvetica", "bold");
       testDoc.setFontSize(8.5);
@@ -1008,16 +1017,20 @@ export function exportClassOccupancyToPdfMobile(classes, schedules, timeSlots, f
         doc.addPage();
       }
 
+      const exportHeader = getExportHeader();
+      const instName = (exportHeader.instituteName || "DAYALBAGH EDUCATIONAL INSTITUTE").toUpperCase();
+      const facName = (exportHeader.facultyName || "ENGINEERING FACULTY").toUpperCase();
+
       // Header
       doc.setFont("helvetica", "bold");
       doc.setFontSize(12);
       doc.setTextColor(30, 41, 59);
-      doc.text("DAYALBAGH EDUCATIONAL INSTITUTE", 148, 10, { align: "center" });
+      doc.text(instName, 148, 10, { align: "center" });
       
       doc.setFont("helvetica", "bold");
       doc.setFontSize(9);
       doc.setTextColor(100, 116, 139);
-      doc.text("ENGINEERING FACULTY", 148, 14, { align: "center" });
+      doc.text(facName, 148, 14, { align: "center" });
       
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10);

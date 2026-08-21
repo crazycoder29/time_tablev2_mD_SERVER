@@ -8,3 +8,4 @@ export * from "./dataHelpers";
 export * from "./exportHelper";
 export * from "./timetableHelpers";
 export * from "./timetableUIHelpers";
+export * from "./exportSettings";

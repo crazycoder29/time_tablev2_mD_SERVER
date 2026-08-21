@@ -11,6 +11,7 @@ from app.routes.curriculums import router as curriculums_router
 from app.routes.settings import router as settings_router
 from app.routes.audit_logs import router as audit_logs_router
 from app.routes.users import router as users_router
+from app.routes.faculties import router as faculties_router
 
 app = FastAPI(title="Planovate API")
 
@@ -36,6 +37,7 @@ app.include_router(timetables_router)
 app.include_router(curriculums_router)
 app.include_router(settings_router)
 app.include_router(audit_logs_router)
+app.include_router(faculties_router)
 
 
 @app.get("/api")

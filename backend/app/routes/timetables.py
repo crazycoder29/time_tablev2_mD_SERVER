@@ -2,8 +2,8 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends
 
 from app.models.models import TimetableMetaIn, SaveTimetableRequest
-from app.core.database import timetables_collection, schedules_collection
-from app.services.dependencies import get_current_user, require_role
+from app.core.database import FacultyCollections
+from app.services.dependencies import get_current_user, require_role, get_faculty_context
 from app.routes.audit_logs import log_action
 from app.services.timetable_helpers import (
     normalize,
@@ -34,6 +34,7 @@ async def list_timetables(
     department: str | None = None,
     semester: str | None = None,
     user: dict = Depends(get_current_user),
+    fc: FacultyCollections = Depends(get_faculty_context),
 ):
     query = {}
     if faculty:
@@ -43,13 +44,13 @@ async def list_timetables(
     if semester:
         query["semester"] = normalize(semester)
 
-    docs = await timetables_collection.find(query).sort("updatedAt", -1).limit(50).to_list(length=None)
+    docs = await fc.timetables.find(query).sort("updatedAt", -1).limit(50).to_list(length=None)
     return [_strip_id(d) for d in docs]
 
 
 @router.get("/all-meta")
-async def list_all_timetables_meta():
-    docs = [_strip_id(d) for d in await timetables_collection.find().to_list(length=None)]
+async def list_all_timetables_meta(fc: FacultyCollections = Depends(get_faculty_context)):
+    docs = [_strip_id(d) for d in await fc.timetables.find().to_list(length=None)]
 
     def sort_key(d):
         try:
@@ -63,15 +64,19 @@ async def list_all_timetables_meta():
 
 
 @router.get("/{timetable_id}")
-async def load_timetable(timetable_id: str, user: dict = Depends(get_current_user)):
-    meta = await timetables_collection.find_one({
+async def load_timetable(
+    timetable_id: str,
+    user: dict = Depends(get_current_user),
+    fc: FacultyCollections = Depends(get_faculty_context),
+):
+    meta = await fc.timetables.find_one({
         "$or": [{"_id": timetable_id}, {"timetableId": timetable_id}, {"unid": timetable_id}]
     })
     if meta is None:
         return None
     meta = _strip_id(meta)
 
-    schedules = [_strip_id(s) for s in await schedules_collection.find({"timetableId": timetable_id}).to_list(length=None)]
+    schedules = [_strip_id(s) for s in await fc.schedules.find({"timetableId": timetable_id}).to_list(length=None)]
     batches_by_table, batch_data_by_table = reconstruct_timetable_from_schedules(schedules)
     tables = list(batches_by_table.keys()) or ["Table 1"]
 
@@ -86,9 +91,13 @@ async def load_timetable(timetable_id: str, user: dict = Depends(get_current_use
 
 
 @router.post("/preset", status_code=201)
-async def create_timetable_preset(meta: TimetableMetaIn, user: dict = Depends(require_role("admin", "tt_incharge"))):
+async def create_timetable_preset(
+    meta: TimetableMetaIn,
+    user: dict = Depends(require_role("admin", "sub_admin", "tt_incharge")),
+    fc: FacultyCollections = Depends(get_faculty_context),
+):
     timetable_id = generate_timetable_id(meta.class_, meta.branch, meta.semester, meta.type)
-    if await timetables_collection.find_one({
+    if await fc.timetables.find_one({
         "$or": [{"_id": timetable_id}, {"timetableId": timetable_id}, {"unid": timetable_id}]
     }):
         raise HTTPException(
@@ -113,8 +122,8 @@ async def create_timetable_preset(meta: TimetableMetaIn, user: dict = Depends(re
         "updatedAt": now,
         "createdAt": now,
     }
-    await timetables_collection.insert_one(doc)
-    await log_action(user, "create_timetable_preset", f"Timetable preset created: {timetable_id}")
+    await fc.timetables.insert_one(doc)
+    await log_action(user, "create_timetable_preset", f"Timetable preset created in '{fc.slug}': {timetable_id}")
     return _strip_id(doc)
 
 
@@ -122,7 +131,8 @@ async def create_timetable_preset(meta: TimetableMetaIn, user: dict = Depends(re
 async def update_timetable_meta(
     old_timetable_id: str,
     meta: TimetableMetaIn,
-    user: dict = Depends(require_role("admin", "tt_incharge")),
+    user: dict = Depends(require_role("admin", "sub_admin", "tt_incharge")),
+    fc: FacultyCollections = Depends(get_faculty_context),
 ):
     new_timetable_id = generate_timetable_id(meta.class_, meta.branch, meta.semester, meta.type)
     now = datetime.now(timezone.utc)
@@ -143,32 +153,32 @@ async def update_timetable_meta(
     }
 
     if old_timetable_id == new_timetable_id:
-        await timetables_collection.update_one(
+        await fc.timetables.update_one(
             {"$or": [{"_id": new_timetable_id}, {"timetableId": new_timetable_id}, {"unid": new_timetable_id}]}, 
             {"$set": payload}
         )
     else:
-        old_doc = await timetables_collection.find_one({
+        old_doc = await fc.timetables.find_one({
             "$or": [{"_id": old_timetable_id}, {"timetableId": old_timetable_id}, {"unid": old_timetable_id}]
         }) or {}
         actual_old_id = old_doc.pop("_id", old_timetable_id)
         merged = {**old_doc, **payload, "_id": new_timetable_id}
-        await timetables_collection.insert_one(merged)
-        await timetables_collection.delete_one({"_id": actual_old_id})
-        # Matching original behavior exactly: existing schedules still carry
-        # old_timetable_id and are NOT moved to the new id. That's a real gap
-        # in the current Firebase app too (renaming orphans schedules) —
-        # preserving it rather than fixing it, per scope.
+        await fc.timetables.insert_one(merged)
+        await fc.timetables.delete_one({"_id": actual_old_id})
 
-    saved = await timetables_collection.find_one({
+    saved = await fc.timetables.find_one({
         "$or": [{"_id": new_timetable_id}, {"timetableId": new_timetable_id}, {"unid": new_timetable_id}]
     })
-    await log_action(user, "update_timetable_meta", f"Timetable metadata updated: {new_timetable_id}")
+    await log_action(user, "update_timetable_meta", f"Timetable metadata updated in '{fc.slug}': {new_timetable_id}")
     return _strip_id(saved)
 
 
 @router.post("/save")
-async def save_timetable(payload: SaveTimetableRequest, user: dict = Depends(require_role("admin", "tt_incharge"))):
+async def save_timetable(
+    payload: SaveTimetableRequest,
+    user: dict = Depends(require_role("admin", "sub_admin", "tt_incharge")),
+    fc: FacultyCollections = Depends(get_faculty_context),
+):
     meta_dict = payload.meta.model_dump(by_alias=True)
     timetable_id = generate_timetable_id(
         meta_dict.get("class"), meta_dict.get("branch"), meta_dict.get("semester"), meta_dict.get("type")
@@ -176,7 +186,7 @@ async def save_timetable(payload: SaveTimetableRequest, user: dict = Depends(req
     prepared = prepare_timetable_payload(meta_dict, payload.days, payload.timeSlots)
     now = datetime.now(timezone.utc)
 
-    await timetables_collection.update_one(
+    await fc.timetables.update_one(
         {"$or": [{"_id": timetable_id}, {"timetableId": timetable_id}, {"unid": timetable_id}]},
         {"$set": {**prepared, "updatedAt": now}, "$setOnInsert": {"createdAt": now, "_id": timetable_id}},
         upsert=True,
@@ -194,25 +204,25 @@ async def save_timetable(payload: SaveTimetableRequest, user: dict = Depends(req
     )
 
     existing_ids = {
-        d["_id"] for d in await schedules_collection.find({"timetableId": timetable_id}).to_list(length=None)
+        d["_id"] for d in await fc.schedules.find({"timetableId": timetable_id}).to_list(length=None)
     }
     new_ids = set()
 
     for occ in schedules:
-        occ.pop("semester", None)  # not persisted — matches original saveSchedules behavior
+        occ.pop("semester", None)
         occ["updatedAt"] = now
         doc_id = schedule_doc_id(timetable_id, occ["tableId"], occ["rowIndex"], occ["colIndex"], occ["batchIndex"])
         new_ids.add(doc_id)
-        await schedules_collection.update_one({"_id": doc_id}, {"$set": occ}, upsert=True)
+        await fc.schedules.update_one({"_id": doc_id}, {"$set": occ}, upsert=True)
 
     orphaned = existing_ids - new_ids
     if orphaned:
-        await schedules_collection.delete_many({"_id": {"$in": list(orphaned)}})
+        await fc.schedules.delete_many({"_id": {"$in": list(orphaned)}})
 
-    saved_meta = await timetables_collection.find_one({
+    saved_meta = await fc.timetables.find_one({
         "$or": [{"_id": timetable_id}, {"timetableId": timetable_id}, {"unid": timetable_id}]
     })
-    await log_action(user, "save_timetable", f"Timetable {timetable_id} saved/updated")
+    await log_action(user, "save_timetable", f"Timetable {timetable_id} saved in '{fc.slug}'")
     return {
         "timetableId": timetable_id,
         "meta": _strip_id(saved_meta),
@@ -222,11 +232,15 @@ async def save_timetable(payload: SaveTimetableRequest, user: dict = Depends(req
 
 
 @router.delete("/{timetable_id}", status_code=204)
-async def delete_timetable(timetable_id: str, user: dict = Depends(require_role("admin", "tt_incharge"))):
-    await schedules_collection.delete_many({"timetableId": timetable_id})
-    result = await timetables_collection.delete_many({
+async def delete_timetable(
+    timetable_id: str,
+    user: dict = Depends(require_role("admin", "sub_admin", "tt_incharge")),
+    fc: FacultyCollections = Depends(get_faculty_context),
+):
+    await fc.schedules.delete_many({"timetableId": timetable_id})
+    result = await fc.timetables.delete_many({
         "$or": [{"_id": timetable_id}, {"timetableId": timetable_id}, {"unid": timetable_id}]
     })
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Timetable not found")
-    await log_action(user, "delete_timetable", f"Timetable {timetable_id} deleted")
+    await log_action(user, "delete_timetable", f"Timetable {timetable_id} deleted in '{fc.slug}'")

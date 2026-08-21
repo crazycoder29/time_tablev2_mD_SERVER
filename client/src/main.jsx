@@ -11,6 +11,7 @@ import Timetable from "./pages/TimetableManagement";
 import BulkUpload from "./pages/BulkUpload";
 import Manage from "./pages/Manage";
 import RoomOccupancy from "./pages/RoomOccupancy";
+import CentralRoomOccupancy from "./pages/CentralRoomOccupancy";
 import TeacherOccupancy from "./pages/TeacherOccupancy";
 import ClassOccupancy from "./pages/ClassOccupancy";
 import AdminSettings from "./pages/AdminSettings";
@@ -21,12 +22,14 @@ import Login from "./pages/Login";
 import AuditLogs from "./pages/AuditLogs";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { useAuthStore } from "./store/authStore";
+import { settingsService } from "./firebase/services";
 
 const AppRoutes = () => {
   const initializeAuth = useAuthStore(state => state.initializeAuth);
 
   useEffect(() => {
     const unsubscribe = initializeAuth();
+    settingsService.getExportHeader().catch(() => {});
     return () => unsubscribe();
   }, [initializeAuth]);
 
@@ -43,6 +46,7 @@ const AppRoutes = () => {
         <Route path="/curriculum" element={<ProtectedRoute><Curriculum /></ProtectedRoute>} />
         <Route path="/timetable" element={<ProtectedRoute><Timetable /></ProtectedRoute>} />
         <Route path="/room-occupancy" element={<ProtectedRoute><RoomOccupancy /></ProtectedRoute>} />
+        <Route path="/central-room-occupancy" element={<ProtectedRoute roles={["admin"]}><CentralRoomOccupancy /></ProtectedRoute>} />
         <Route path="/teacher-occupancy" element={<ProtectedRoute><TeacherOccupancy /></ProtectedRoute>} />
         <Route path="/class-occupancy" element={<ProtectedRoute><ClassOccupancy /></ProtectedRoute>} />
         <Route path="/manage" element={<ProtectedRoute><Manage /></ProtectedRoute>} />

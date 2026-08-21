@@ -1363,93 +1363,7 @@ const TimetableCell = ({
                 )}
               </div>
 
-              {/* Room Field */}
-              <div className="relative">
-                <SimpleCombobox
-                  value={batch.room || ""}
-                  onChange={(val) => handleInputChange(batchIndex, 'room', val)}
-                  onKeyDown={(e) => handleKeyDown(e, batchIndex, 'room')}
-                  options={rooms}
-                  inputRef={(el) => inputRefs.current[`${batchIndex}-room`] = el}
-                  className={`w-full text-[10px] px-1 py-0.5 border rounded focus:outline-none focus:ring-1 ${
-                    hasRoomError
-                      ? "border-orange-500 bg-orange-50 focus:ring-orange-500 focus:border-orange-500"
-                      : hasRoomConflict
-                      ? "border-red-500 bg-red-50 focus:ring-red-400 focus:border-red-500"
-                      : isRoomOldFormat
-                      ? "border-red-900 bg-red-50 text-red-900 focus:ring-red-900 focus:border-red-900"
-                      : "border-gray-300 focus:ring-blue-400 focus:border-blue-400"
-                  }`}
-                  placeholder="Room"
-                  title={
-                    hasRoomError
-                      ? `⚠️ ${validationInfo.room?.error || 'Invalid room'}`
-                      : hasRoomConflict
-                      ? "⚠️ Conflict: Room assigned elsewhere at this time"
-                      : isRoomOldFormat
-                      ? "⚠️ Not migrated - Using old format (no ID reference)"
-                      : ""
-                  }
-                />
-                {hasRoomError && (
-                  <AlertCircle className="absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 text-orange-500" />
-                )}
-              </div>
-
-              {/* Cross-timetable Room Booking Warning */}
-              {(() => {
-                if (!batch.roomId || !roomBookings || !days || !timeSlots) return null;
-                const warnKey = `room-${batchIndex}-${batch.roomId}`;
-                if (dismissedBookingWarnings[warnKey]) return null;
-                
-                const cellDay = (days || [])[colIndex];
-                const cellTime = (timeSlots || [])[rowIndex];
-                if (!cellDay || !cellTime) return null;
-                
-                const norm = (v) => String(v ?? "").trim().replace(/\s+/g, " ").toLowerCase();
-                const allBookingsAtSlot = (roomBookings[String(batch.roomId)] || []).filter(
-                  (b) => norm(b.day) === norm(cellDay) && norm(b.time) === norm(cellTime)
-                );
-                
-                // Smart exclusion: 
-                // Exclude any draft bookings coming from the EXACT SAME tab doing the editing.
-                const bookings = allBookingsAtSlot.filter((b) => {
-                  if (b.source === "draft" && b.sourceTableKey === currentTableKey) return false;
-                  return true;
-                });
-                
-                if (bookings.length === 0) return null;
-                
-                // Build label showing who it's booked by
-                const bookedByLabels = bookings.map((b) => {
-                  const parts = [b.class, b.branch].filter(Boolean);
-                  return parts.join(" · ") || b.timetableId || "Another timetable";
-                });
-                const uniqueLabels = [...new Set(bookedByLabels)];
-                
-                return (
-                  <div className="mt-0.5 flex items-start gap-0.5 bg-amber-50 border border-amber-200 rounded px-1 py-0.5 animate-fadeIn">
-                    <AlertCircle className="w-2.5 h-2.5 text-amber-500 shrink-0 mt-[1px]" />
-                    <span className="text-[7px] text-amber-700 leading-tight flex-1">
-                      Room occupied by {uniqueLabels.join(", ")}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setDismissedBookingWarnings((prev) => ({ ...prev, [warnKey]: true }));
-                      }}
-                      className="text-amber-400 hover:text-amber-600 shrink-0 -mt-[1px]"
-                      title="Dismiss warning"
-                    >
-                      <X className="w-2.5 h-2.5" />
-                    </button>
-                  </div>
-                );
-              })()}
-
-              {/* Cross-timetable Teacher Booking Warning */}
+              {/* Cross-timetable Teacher Booking Warning (Directly Below Teacher Input) */}
               {(() => {
                 if (!batch.teacherId || !teacherBookings || !days || !timeSlots) return null;
                 const warnKey = `teacher-${batchIndex}-${batch.teacherId}`;
@@ -1499,6 +1413,92 @@ const TimetableCell = ({
                     <AlertCircle className="w-2.5 h-2.5 text-amber-500 shrink-0 mt-[1px]" />
                     <span className="text-[7px] text-amber-700 leading-tight flex-1">
                       {uniqueLabels.join(", ")}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setDismissedBookingWarnings((prev) => ({ ...prev, [warnKey]: true }));
+                      }}
+                      className="text-amber-400 hover:text-amber-600 shrink-0 -mt-[1px]"
+                      title="Dismiss warning"
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  </div>
+                );
+              })()}
+
+              {/* Room Field */}
+              <div className="relative">
+                <SimpleCombobox
+                  value={batch.room || ""}
+                  onChange={(val) => handleInputChange(batchIndex, 'room', val)}
+                  onKeyDown={(e) => handleKeyDown(e, batchIndex, 'room')}
+                  options={rooms}
+                  inputRef={(el) => inputRefs.current[`${batchIndex}-room`] = el}
+                  className={`w-full text-[10px] px-1 py-0.5 border rounded focus:outline-none focus:ring-1 ${
+                    hasRoomError
+                      ? "border-orange-500 bg-orange-50 focus:ring-orange-500 focus:border-orange-500"
+                      : hasRoomConflict
+                      ? "border-red-500 bg-red-50 focus:ring-red-400 focus:border-red-500"
+                      : isRoomOldFormat
+                      ? "border-red-900 bg-red-50 text-red-900 focus:ring-red-900 focus:border-red-900"
+                      : "border-gray-300 focus:ring-blue-400 focus:border-blue-400"
+                  }`}
+                  placeholder="Room"
+                  title={
+                    hasRoomError
+                      ? `⚠️ ${validationInfo.room?.error || 'Invalid room'}`
+                      : hasRoomConflict
+                      ? "⚠️ Conflict: Room assigned elsewhere at this time"
+                      : isRoomOldFormat
+                      ? "⚠️ Not migrated - Using old format (no ID reference)"
+                      : ""
+                  }
+                />
+                {hasRoomError && (
+                  <AlertCircle className="absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 text-orange-500" />
+                )}
+              </div>
+
+              {/* Cross-timetable Room Booking Warning (Directly Below Room Input) */}
+              {(() => {
+                if (!batch.roomId || !roomBookings || !days || !timeSlots) return null;
+                const warnKey = `room-${batchIndex}-${batch.roomId}`;
+                if (dismissedBookingWarnings[warnKey]) return null;
+                
+                const cellDay = (days || [])[colIndex];
+                const cellTime = (timeSlots || [])[rowIndex];
+                if (!cellDay || !cellTime) return null;
+                
+                const norm = (v) => String(v ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+                const allBookingsAtSlot = (roomBookings[String(batch.roomId)] || []).filter(
+                  (b) => norm(b.day) === norm(cellDay) && norm(b.time) === norm(cellTime)
+                );
+                
+                // Smart exclusion: 
+                // Exclude any draft bookings coming from the EXACT SAME tab doing the editing.
+                const bookings = allBookingsAtSlot.filter((b) => {
+                  if (b.source === "draft" && b.sourceTableKey === currentTableKey) return false;
+                  return true;
+                });
+                
+                if (bookings.length === 0) return null;
+                
+                // Build label showing who it's booked by
+                const bookedByLabels = bookings.map((b) => {
+                  const parts = [b.class, b.branch].filter(Boolean);
+                  return parts.join(" · ") || b.timetableId || "Another timetable";
+                });
+                const uniqueLabels = [...new Set(bookedByLabels)];
+                
+                return (
+                  <div className="mt-0.5 flex items-start gap-0.5 bg-amber-50 border border-amber-200 rounded px-1 py-0.5 animate-fadeIn">
+                    <AlertCircle className="w-2.5 h-2.5 text-amber-500 shrink-0 mt-[1px]" />
+                    <span className="text-[7px] text-amber-700 leading-tight flex-1">
+                      Room occupied by {uniqueLabels.join(", ")}
                     </span>
                     <button
                       type="button"

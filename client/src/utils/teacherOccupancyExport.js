@@ -6,6 +6,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { formatCellOccupancy, abbreviateText } from "./abbreviations";
+import { getExportHeader } from "./exportSettings";
 
 const cleanTime = (t) => String(t || "").replace(/\s+/g, "").trim().toLowerCase();
 
@@ -89,16 +90,20 @@ export function exportTeacherOccupancyToPdf(teachers, schedules, timeSlots, file
       day.label
     );
     
+    const exportHeader = getExportHeader();
+    const instName = (exportHeader.instituteName || "DAYALBAGH EDUCATIONAL INSTITUTE").toUpperCase();
+    const facName = (exportHeader.facultyName || "ENGINEERING FACULTY").toUpperCase();
+
     // Header
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
     doc.setTextColor(30, 41, 59);
-    doc.text("DAYALBAGH EDUCATIONAL INSTITUTE", 297, 12, { align: "center" });
+    doc.text(instName, 297, 12, { align: "center" });
     
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
     doc.setTextColor(100, 116, 139);
-    doc.text("ENGINEERING FACULTY", 297, 17, { align: "center" });
+    doc.text(facName, 297, 17, { align: "center" });
     
     doc.setFont("helvetica", "bold");
     doc.setFontSize(13);
@@ -279,16 +284,20 @@ export function exportStaffListToPdf(teachers, fileName = "staff-list") {
     }
   });
 
+  const exportHeader = getExportHeader();
+  const instName = (exportHeader.instituteName || "DAYALBAGH EDUCATIONAL INSTITUTE").toUpperCase();
+  const facName = (exportHeader.facultyName || "ENGINEERING FACULTY").toUpperCase();
+
   // Header & Title
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
   doc.setTextColor(30, 41, 59);
-  doc.text("DAYALBAGH EDUCATIONAL INSTITUTE", 105, 12, { align: "center" });
+  doc.text(instName, 105, 12, { align: "center" });
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   doc.setTextColor(100, 116, 139);
-  doc.text("ENGINEERING FACULTY - STAFF DIRECTORY", 105, 17, { align: "center" });
+  doc.text(`${facName} - STAFF DIRECTORY`, 105, 17, { align: "center" });
 
   doc.setDrawColor(226, 232, 240);
   doc.setLineWidth(0.5);
@@ -434,7 +443,13 @@ export function exportStaffListToPdf(teachers, fileName = "staff-list") {
 /**
  * Export a single teacher's weekly schedule as a single page A4 PDF grid
  */
-export function exportIndividualTeacherOccupancyToPdf(teacher, schedules, timeSlots, fileName = "teacher-schedule") {
+export function exportIndividualTeacherOccupancyToPdf(
+  teacher, 
+  schedules, 
+  timeSlots, 
+  fileName = "teacher-schedule",
+  customHeader = null
+) {
   const doc = new jsPDF({
     orientation: "landscape",
     unit: "mm",
@@ -444,16 +459,20 @@ export function exportIndividualTeacherOccupancyToPdf(teacher, schedules, timeSl
   const teacherName = teacher.name || teacher.ID || "Unknown";
   const teacherId = String(teacher.unid || '');
 
+  const exportHeader = customHeader || getExportHeader();
+  const instName = (exportHeader.instituteName || exportHeader.institute_name || "DAYALBAGH EDUCATIONAL INSTITUTE").toUpperCase();
+  const facName = (exportHeader.facultyName || exportHeader.faculty_name || "ENGINEERING FACULTY").toUpperCase();
+
   // Header & Title
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
   doc.setTextColor(30, 41, 59);
-  doc.text("DAYALBAGH EDUCATIONAL INSTITUTE", 148, 12, { align: "center" });
+  doc.text(instName, 148, 12, { align: "center" });
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   doc.setTextColor(100, 116, 139);
-  doc.text("ENGINEERING FACULTY", 148, 17, { align: "center" });
+  doc.text(facName, 148, 17, { align: "center" });
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
@@ -495,21 +514,27 @@ export function exportIndividualTeacherOccupancyToPdf(teacher, schedules, timeSl
 
     days.forEach((day) => {
       const dayToColIndex = {
-        "Mon": 0,
-        "Tue": 1,
-        "Wed": 2,
-        "Thu": 3,
-        "Fri": 4,
-        "Sat": 5
+        "Mon": 0, "Tue": 1, "Wed": 2, "Thu": 3, "Fri": 4, "Sat": 5
       };
       
       const colIndex = dayToColIndex[day.key];
       const matches = schedules.filter((s) => {
         const teacherIds = s.teacherId ? String(s.teacherId).split(',').map(id => id.trim()).filter(Boolean) : [];
-        const teacherMatch = teacherIds.includes(teacherId);
-        const timeMatch = cleanTime(s.time) === cleanTime(timeSlot);
-        const dayMatch = s.colIndex === colIndex;
-        return teacherMatch && timeMatch && dayMatch;
+        const teacherMatch = 
+          teacherIds.length === 0 || 
+          teacherIds.includes(teacherId) || 
+          (teacher.ID && teacherIds.includes(String(teacher.ID).trim())) ||
+          (teacher.name && teacherIds.includes(String(teacher.name).trim()));
+
+        const dayMatch = 
+          s.colIndex === colIndex || 
+          (s.day && String(s.day).slice(0, 3).toLowerCase() === day.key.toLowerCase());
+
+        const timeMatch = 
+          cleanTime(s.time) === cleanTime(timeSlot) || 
+          (s.rowIndex !== undefined && s.rowIndex !== null && Number(s.rowIndex) === rowIndex);
+
+        return teacherMatch && dayMatch && timeMatch;
       });
 
       if (matches.length === 0) {
@@ -574,6 +599,177 @@ export function exportIndividualTeacherOccupancyToPdf(teacher, schedules, timeSl
 
   doc.save(`${fileName}.pdf`);
 }
+
+/**
+ * Export ALL teachers' individual weekly schedules into a consolidated multi-page A4 PDF (1 page per teacher)
+ */
+export function exportAllTeachersIndividualOccupancyToPdf(
+  teachers, 
+  schedules, 
+  timeSlots, 
+  fileName = "all-teachers-schedules",
+  customHeader = null
+) {
+  if (!teachers || teachers.length === 0) return;
+
+  const doc = new jsPDF({
+    orientation: "landscape",
+    unit: "mm",
+    format: "a4"
+  });
+
+  const exportHeader = customHeader || getExportHeader();
+  const instName = (exportHeader.instituteName || exportHeader.institute_name || "DAYALBAGH EDUCATIONAL INSTITUTE").toUpperCase();
+  const facName = (exportHeader.facultyName || exportHeader.faculty_name || "ENGINEERING FACULTY").toUpperCase();
+
+  const hasSunday = (schedules || []).some(s => String(s.day).trim().toLowerCase() === "sun");
+  const days = [
+    { key: "Mon", label: "Monday" },
+    { key: "Tue", label: "Tuesday" },
+    { key: "Wed", label: "Wednesday" },
+    { key: "Thu", label: "Thursday" },
+    { key: "Fri", label: "Friday" },
+    { key: "Sat", label: "Saturday" },
+  ];
+  if (hasSunday) {
+    days.push({ key: "Sun", label: "Sunday" });
+  }
+
+  const headers = ["Time Slot", ...days.map(d => d.label)];
+  const totalTeachers = teachers.length;
+
+  teachers.forEach((teacher, idx) => {
+    if (idx > 0) {
+      doc.addPage();
+    }
+
+    const teacherName = teacher.name || teacher.ID || "Unknown";
+    const teacherId = String(teacher.unid || '');
+
+    // Header & Title
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(30, 41, 59);
+    doc.text(instName, 148, 12, { align: "center" });
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(100, 116, 139);
+    doc.text(facName, 148, 17, { align: "center" });
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(30, 41, 59);
+    doc.text(`WEEKLY SCHEDULE - ${teacherName.toUpperCase()}`, 148, 24, { align: "center" });
+
+    if (teacher.ID || teacher.department) {
+      const details = [];
+      if (teacher.ID) details.push(`ID: ${teacher.ID}`);
+      if (teacher.department) details.push(`Department: ${teacher.department}`);
+      if (teacher.faculty) details.push(`Faculty: ${teacher.faculty}`);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(71, 85, 105);
+      doc.text(details.join(" | "), 148, 29, { align: "center" });
+    }
+
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.5);
+    doc.line(15, 32, 282, 32);
+
+    const body = timeSlots.map((timeSlot, rowIndex) => {
+      const row = [timeSlot];
+
+      days.forEach((day) => {
+        const dayToColIndex = {
+          "Mon": 0, "Tue": 1, "Wed": 2, "Thu": 3, "Fri": 4, "Sat": 5
+        };
+        
+        const colIndex = dayToColIndex[day.key];
+        const matches = schedules.filter((s) => {
+          const teacherIds = s.teacherId ? String(s.teacherId).split(',').map(id => id.trim()).filter(Boolean) : [];
+          const teacherMatch = 
+            teacherIds.length === 0 || 
+            teacherIds.includes(teacherId) || 
+            (teacher.ID && teacherIds.includes(String(teacher.ID).trim())) ||
+            (teacher.name && teacherIds.includes(String(teacher.name).trim()));
+
+          const dayMatch = 
+            s.colIndex === colIndex || 
+            (s.day && String(s.day).slice(0, 3).toLowerCase() === day.key.toLowerCase());
+
+          const timeMatch = 
+            cleanTime(s.time) === cleanTime(timeSlot) || 
+            (s.rowIndex !== undefined && s.rowIndex !== null && Number(s.rowIndex) === rowIndex);
+
+          return teacherMatch && dayMatch && timeMatch;
+        });
+
+        if (matches.length === 0) {
+          row.push("—");
+        } else {
+          row.push(formatCellOccupancy(matches));
+        }
+      });
+
+      return row;
+    });
+
+
+    autoTable(doc, {
+      head: [headers],
+      body: body,
+      startY: 36,
+      theme: "grid",
+      rowPageBreak: 'avoid',
+      styles: {
+        fontSize: 7,
+        cellPadding: 2,
+        overflow: "linebreak",
+        halign: "center",
+        valign: "top",
+        lineWidth: 0.1,
+        lineColor: [226, 232, 240],
+        textColor: [15, 23, 42]
+      },
+      headStyles: {
+        fillColor: [30, 41, 59],
+        textColor: [255, 255, 255],
+        fontStyle: "bold",
+        halign: "center",
+        fontSize: 8,
+        cellPadding: 2.5
+      },
+      columnStyles: {
+        0: {
+          fontStyle: "bold",
+          halign: "left",
+          cellWidth: 25
+        }
+      },
+      didParseCell: (data) => {
+        if (data.section === "body" && data.column.index > 0) {
+          if (data.cell.raw !== "—") {
+            data.cell.styles.fillColor = [220, 252, 231];
+          } else {
+            data.cell.styles.fillColor = [255, 255, 255];
+            data.cell.styles.textColor = [160, 160, 160];
+          }
+        }
+      },
+      margin: { top: 36, bottom: 15, left: 15, right: 15 }
+    });
+
+    // Page numbering
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text(`Page ${idx + 1} of ${totalTeachers} • Teacher ${idx + 1} of ${totalTeachers}`, 15, 200);
+  });
+
+  doc.save(`${fileName}.pdf`);
+}
+
 
 /**
  * Export a single teacher's weekly schedule to Excel as a single sheet grid

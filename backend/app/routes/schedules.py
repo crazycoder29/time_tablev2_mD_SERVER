@@ -2,8 +2,8 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends, Query
 
 from app.models.models import SaveSchedulesRequest
-from app.core.database import schedules_collection
-from app.services.dependencies import get_current_user, require_role
+from app.core.database import FacultyCollections
+from app.services.dependencies import get_current_user, require_role, get_faculty_context
 from app.services.timetable_helpers import normalize, safe_id
 
 router = APIRouter(prefix="/api/schedules", tags=["schedules"])
@@ -19,30 +19,41 @@ def _strip_id(doc: dict) -> dict:
 
 
 @router.get("")
-async def list_schedules_by_timetable(timetableId: str = Query(...), user: dict = Depends(get_current_user)):
-    docs = await schedules_collection.find({"timetableId": str(timetableId)}).to_list(length=None)
+async def list_schedules_by_timetable(
+    timetableId: str = Query(...),
+    user: dict = Depends(get_current_user),
+    fc: FacultyCollections = Depends(get_faculty_context),
+):
+    docs = await fc.schedules.find({"timetableId": str(timetableId)}).to_list(length=None)
     return [_strip_id(d) for d in docs]
 
 
 @router.get("/public-all")
-async def list_public_schedules():
-    docs = await schedules_collection.find().to_list(length=None)
+async def list_public_schedules(fc: FacultyCollections = Depends(get_faculty_context)):
+    docs = await fc.schedules.find().to_list(length=None)
     return [_strip_id(d) for d in docs]
 
 
 @router.get("/all")
-async def list_all_schedules(user: dict = Depends(get_current_user)):
-    docs = await schedules_collection.find().to_list(length=None)
+async def list_all_schedules(
+    user: dict = Depends(get_current_user),
+    fc: FacultyCollections = Depends(get_faculty_context),
+):
+    docs = await fc.schedules.find().to_list(length=None)
     return [_strip_id(d) for d in docs]
 
 
 @router.post("")
-async def save_schedules(payload: SaveSchedulesRequest, user: dict = Depends(require_role("admin", "tt_incharge"))):
+async def save_schedules(
+    payload: SaveSchedulesRequest,
+    user: dict = Depends(require_role("admin", "sub_admin", "tt_incharge")),
+    fc: FacultyCollections = Depends(get_faculty_context),
+):
     timetable_id = payload.timetableId
     if not timetable_id:
         raise HTTPException(status_code=400, detail="timetableId is required")
 
-    existing_docs = await schedules_collection.find({"timetableId": timetable_id}).to_list(length=None)
+    existing_docs = await fc.schedules.find({"timetableId": timetable_id}).to_list(length=None)
     existing_ids = {d["_id"] for d in existing_docs}
 
     now = datetime.now(timezone.utc)
@@ -72,23 +83,31 @@ async def save_schedules(payload: SaveSchedulesRequest, user: dict = Depends(req
         if s.remark is not None:
             doc["remark"] = s.remark
 
-        await schedules_collection.update_one({"_id": doc_id}, {"$set": doc}, upsert=True)
+        await fc.schedules.update_one({"_id": doc_id}, {"$set": doc}, upsert=True)
 
-    # delete orphaned entries: existed before, absent from the new payload
+    # delete orphaned entries
     orphaned = existing_ids - new_ids
     if orphaned:
-        await schedules_collection.delete_many({"_id": {"$in": list(orphaned)}})
+        await fc.schedules.delete_many({"_id": {"$in": list(orphaned)}})
 
     return {"saved": len(new_ids), "deleted": len(orphaned)}
 
 
 @router.delete("/by-timetable/{timetable_id}", status_code=204)
-async def delete_schedules_by_timetable(timetable_id: str, user: dict = Depends(require_role("admin", "tt_incharge"))):
-    await schedules_collection.delete_many({"timetableId": timetable_id})
+async def delete_schedules_by_timetable(
+    timetable_id: str,
+    user: dict = Depends(require_role("admin", "sub_admin", "tt_incharge")),
+    fc: FacultyCollections = Depends(get_faculty_context),
+):
+    await fc.schedules.delete_many({"timetableId": timetable_id})
 
 
 @router.delete("/{schedule_id}", status_code=204)
-async def delete_schedule(schedule_id: str, user: dict = Depends(require_role("admin", "tt_incharge"))):
-    result = await schedules_collection.delete_one({"_id": schedule_id})
+async def delete_schedule(
+    schedule_id: str,
+    user: dict = Depends(require_role("admin", "sub_admin", "tt_incharge")),
+    fc: FacultyCollections = Depends(get_faculty_context),
+):
+    result = await fc.schedules.delete_one({"_id": schedule_id})
     if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Schedule not found")
+        raise HTTPException(status_code=404, detail="Schedule not found")

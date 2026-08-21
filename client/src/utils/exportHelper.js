@@ -19,6 +19,7 @@ import * as XLSX from "xlsx";
 
 import { DEFAULT_DAYS, normalize, dataKey } from "./dataHelpers";
 import { getBatchCount } from "./timetableHelpers";
+import { getExportHeader } from "./exportSettings";
 
 function resolveTables({ tableId, batches, batchData, batchesByTable, batchDataByTable }) {
   if (batchesByTable && batchDataByTable) {
@@ -306,15 +307,19 @@ export function exportTimetableToPdf({
       format: "a4",
     });
 
+    const exportHeader = getExportHeader();
+    const instName = (exportHeader.instituteName || "DAYALBAGH EDUCATIONAL INSTITUTE").toUpperCase();
+    const facName = (exportHeader.facultyName || "ENGINEERING FACULTY").toUpperCase();
+
     testDoc.setFont("helvetica", "bold");
     testDoc.setFontSize(13);
     testDoc.setTextColor(30, 41, 59);
-    testDoc.text("DAYALBAGH EDUCATIONAL INSTITUTE", 841.89 / 2, 28, { align: "center" });
+    testDoc.text(instName, 841.89 / 2, 28, { align: "center" });
     
     testDoc.setFont("helvetica", "bold");
     testDoc.setFontSize(9.5);
     testDoc.setTextColor(100, 116, 139);
-    testDoc.text("ENGINEERING FACULTY", 841.89 / 2, 42, { align: "center" });
+    testDoc.text(facName, 841.89 / 2, 42, { align: "center" });
     
     testDoc.setFont("helvetica", "bold");
     testDoc.setFontSize(11);
@@ -491,16 +496,20 @@ export function exportTimetablesToPdf({ fileName, meta, tables }) {
     const tableMeta = t.meta || meta;
     const title = buildPdfTitle(tableMeta, grid.tableId);
 
+    const exportHeader = getExportHeader();
+    const instName = (exportHeader.instituteName || "DAYALBAGH EDUCATIONAL INSTITUTE").toUpperCase();
+    const facName = (exportHeader.facultyName || "ENGINEERING FACULTY").toUpperCase();
+
     // Branded Centered Header
     doc.setFont("helvetica", "bold");
     doc.setFontSize(13);
     doc.setTextColor(30, 41, 59);
-    doc.text("DAYALBAGH EDUCATIONAL INSTITUTE", 841.89 / 2, 28, { align: "center" });
+    doc.text(instName, 841.89 / 2, 28, { align: "center" });
     
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9.5);
     doc.setTextColor(100, 116, 139);
-    doc.text("ENGINEERING FACULTY", 841.89 / 2, 42, { align: "center" });
+    doc.text(facName, 841.89 / 2, 42, { align: "center" });
     
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);

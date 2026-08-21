@@ -6,16 +6,23 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
 
 /**
- * Returns auth headers with JWT token from localStorage
+ * Returns auth headers with JWT token, active faculty, and active semester context from localStorage
  */
 export function getAuthHeaders() {
   const token = localStorage.getItem("access_token");
-  const headers = { "Content-Type": "application/json" };
+  const activeFaculty = localStorage.getItem("planovate_active_faculty") || "engineering";
+  const activeSemester = localStorage.getItem("planovate_active_semester") || "odd";
+  const headers = {
+    "Content-Type": "application/json",
+    "X-Faculty-Context": activeFaculty,
+    "X-Semester-Context": activeSemester,
+  };
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
   return headers;
 }
+
 
 /**
  * Wrapper around fetch that adds auth headers and handles errors

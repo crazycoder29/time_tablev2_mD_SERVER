@@ -213,9 +213,49 @@ class SaveBranchesRequest(BaseModel):
     branches: list[BranchEntry] = []
 
 
+class ExportHeaderSettings(BaseModel):
+    institute_name: str = "DAYALBAGH EDUCATIONAL INSTITUTE"
+    faculty_name: str = "ENGINEERING FACULTY"
+
+
+# ── Faculties ────────────────────────────────────────────────────────────
+class FacultyCreate(BaseModel):
+    name: str
+    slug: Optional[str] = None
+    code: Optional[str] = ""
+    description: Optional[str] = ""
+    institute_name: Optional[str] = "DAYALBAGH EDUCATIONAL INSTITUTE"
+    current_semester: Optional[str] = "odd"
+
+
+class FacultyUpdate(BaseModel):
+    name: Optional[str] = None
+    code: Optional[str] = None
+    description: Optional[str] = None
+    institute_name: Optional[str] = None
+    current_semester: Optional[str] = None
+
+
+class FacultySemesterUpdate(BaseModel):
+    semester: str  # "odd" or "even"
+
+
+class FacultyOut(BaseModel):
+    id: str
+    name: str
+    slug: str
+    code: str = ""
+    description: str = ""
+    database_name: str
+    institute_name: str = "DAYALBAGH EDUCATIONAL INSTITUTE"
+    current_semester: str = "odd"
+    created_at: datetime
+    user_count: int = 0
+
+
 # ── Audit Logs ───────────────────────────────────────────────────────────
 class AuditLogEntry(BaseModel):
     user: str
     action: str
     details: str
-    timestamp: datetime
+    timestamp: datetime

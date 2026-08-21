@@ -80,3 +80,18 @@ export async function listFaculties(forceRefresh = false) {
   });
   return Array.from(set).sort((a, b) => a.localeCompare(b));
 }
+
+/**
+ * Super Admin Central Room Occupancy aggregator across all faculty databases.
+ * Supports per-faculty semester configuration (e.g. { engineering: 'odd', arts: 'even' }).
+ */
+export async function getCentralRoomOccupancy(semesterOverrides = {}) {
+  let queryString = "";
+  if (semesterOverrides && Object.keys(semesterOverrides).length > 0) {
+    const pairs = Object.entries(semesterOverrides)
+      .map(([slug, sem]) => `${slug}:${sem}`)
+      .join(",");
+    queryString = `?semesters=${encodeURIComponent(pairs)}`;
+  }
+  return await apiFetch(`/api/rooms/central-occupancy${queryString}`);
+}

@@ -9,4 +9,5 @@ export * as roomBookingService from "./roomBookings";
 export * as teacherBookingService from "./teacherBookings";
 export * as auditLogsService from "./auditLogs";
 export * as usersService from "./users";
+export * as facultiesService from "./faculties";
 

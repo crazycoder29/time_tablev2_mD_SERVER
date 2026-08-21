@@ -3,6 +3,7 @@
  */
 
 import { apiFetch } from "../api";
+import { setExportHeader } from "../../utils/exportSettings";
 
 /**
  * Get all programs (class names like B.Tech, M.Tech)
@@ -43,5 +44,38 @@ export async function saveBranches(branches) {
  * Get all settings at once
  */
 export async function getAllSettings() {
-  return await apiFetch("/api/settings/all");
+  const data = await apiFetch("/api/settings/all");
+  if (data && data.export_header) {
+    setExportHeader(data.export_header);
+  }
+  return data;
+}
+
+/**
+ * Get export header settings
+ */
+export async function getExportHeader() {
+  const data = await apiFetch("/api/settings/export-header");
+  if (data) {
+    setExportHeader(data);
+  }
+  return data;
+}
+
+/**
+ * Save export header settings (Admin only)
+ */
+export async function saveExportHeader(header) {
+  const payload = {
+    institute_name: header.institute_name || header.instituteName,
+    faculty_name: header.faculty_name || header.facultyName,
+  };
+  const data = await apiFetch("/api/settings/export-header", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  if (data) {
+    setExportHeader(data);
+  }
+  return data;
 }

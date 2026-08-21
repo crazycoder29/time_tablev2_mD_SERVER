@@ -26,16 +26,17 @@ const ProtectedRoute = ({ children }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Restrict Admin-only routes
+  // Restrict Admin and Sub-Admin routes
   const adminOnlyRoutes = ["/admin-settings", "/audit-logs"];
-  if (adminOnlyRoutes.includes(location.pathname) && role !== "admin") {
+  if (adminOnlyRoutes.includes(location.pathname) && role !== "admin" && role !== "sub_admin") {
     return <Navigate to="/" replace />;
   }
 
-  // Restrict Assign Load route to HOD and Admin accounts only
-  if (location.pathname === "/assign-load" && role !== "admin" && role !== "hod") {
+  // Restrict Assign Load route to HOD, Sub-Admin and Admin accounts only
+  if (location.pathname === "/assign-load" && role !== "admin" && role !== "sub_admin" && role !== "hod") {
     return <Navigate to="/" replace />;
   }
+
 
   return children;
 };
