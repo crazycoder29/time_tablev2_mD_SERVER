@@ -213,6 +213,11 @@ class SaveBranchesRequest(BaseModel):
     branches: list[BranchEntry] = []
 
 
+class SaveExportHeaderRequest(BaseModel):
+    institutionName: str = "DAYALBAGH EDUCATIONAL INSTITUTE"
+    facultyName: str = "ENGINEERING FACULTY"
+
+
 # ── Audit Logs ───────────────────────────────────────────────────────────
 class AuditLogEntry(BaseModel):
     user: str

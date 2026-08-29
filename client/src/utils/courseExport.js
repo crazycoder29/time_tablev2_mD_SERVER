@@ -1,11 +1,13 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
+import { resolveExportHeader } from "./exportHeaderHelper";
 
 /**
  * Export a complete list of courses in two balanced columns, grouped/categorized dynamically by department/branch.
  */
-export function exportCourseListToPdf(courses, teachers, fileName = "dei-course-list") {
+export function exportCourseListToPdf(courses, teachers, fileName = "dei-course-list", exportHeader) {
+  const header = resolveExportHeader(exportHeader);
   const doc = new jsPDF({
     orientation: "portrait",
     unit: "mm",
@@ -57,12 +59,12 @@ export function exportCourseListToPdf(courses, teachers, fileName = "dei-course-
     d.setFont("helvetica", "bold");
     d.setFontSize(14);
     d.setTextColor(30, 41, 59);
-    d.text("DAYALBAGH EDUCATIONAL INSTITUTE", 105, 12, { align: "center" });
+    d.text(header.institutionName, 105, 12, { align: "center" });
 
     d.setFont("helvetica", "bold");
     d.setFontSize(10);
     d.setTextColor(100, 116, 139);
-    d.text("ENGINEERING FACULTY - MASTER COURSE DIRECTORY", 105, 17, { align: "center" });
+    d.text(`${header.facultyName} - MASTER COURSE DIRECTORY`, 105, 17, { align: "center" });
 
     d.setDrawColor(226, 232, 240);
     d.setLineWidth(0.5);

@@ -21,12 +21,14 @@ import Login from "./pages/Login";
 import AuditLogs from "./pages/AuditLogs";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { useAuthStore } from "./store/authStore";
+import { fetchExportHeader } from "./utils/exportHeaderHelper";
 
 const AppRoutes = () => {
   const initializeAuth = useAuthStore(state => state.initializeAuth);
 
   useEffect(() => {
     const unsubscribe = initializeAuth();
+    fetchExportHeader();
     return () => unsubscribe();
   }, [initializeAuth]);
 

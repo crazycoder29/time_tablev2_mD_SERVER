@@ -6,6 +6,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { formatCellOccupancy, abbreviateText } from "./abbreviations";
+import { resolveExportHeader } from "./exportHeaderHelper";
 
 const cleanTime = (t) => String(t || "").replace(/\s+/g, "").trim().toLowerCase();
 
@@ -56,7 +57,8 @@ function buildTeacherOccupancyGrid(teachers, schedules, timeSlots, dayKey, dayLa
 /**
  * Export teacher occupancy to PDF (separate pages for each day)
  */
-export function exportTeacherOccupancyToPdf(teachers, schedules, timeSlots, fileName = "teacher-occupancy") {
+export function exportTeacherOccupancyToPdf(teachers, schedules, timeSlots, fileName = "teacher-occupancy", exportHeader) {
+  const header = resolveExportHeader(exportHeader);
   const doc = new jsPDF({
     orientation: "landscape",
     unit: "mm",
@@ -93,12 +95,12 @@ export function exportTeacherOccupancyToPdf(teachers, schedules, timeSlots, file
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
     doc.setTextColor(30, 41, 59);
-    doc.text("DAYALBAGH EDUCATIONAL INSTITUTE", 297, 12, { align: "center" });
+    doc.text(header.institutionName, 297, 12, { align: "center" });
     
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
     doc.setTextColor(100, 116, 139);
-    doc.text("ENGINEERING FACULTY", 297, 17, { align: "center" });
+    doc.text(header.facultyName, 297, 17, { align: "center" });
     
     doc.setFont("helvetica", "bold");
     doc.setFontSize(13);
@@ -212,7 +214,8 @@ export function exportTeacherOccupancyToExcel(teachers, schedules, timeSlots, fi
 /**
  * Export a complete list of staff in one sheet (A4 Portrait), grouped by department.
  */
-export function exportStaffListToPdf(teachers, fileName = "staff-list") {
+export function exportStaffListToPdf(teachers, fileName = "staff-list", exportHeader) {
+  const header = resolveExportHeader(exportHeader);
   const doc = new jsPDF({
     orientation: "portrait",
     unit: "mm",
@@ -283,12 +286,12 @@ export function exportStaffListToPdf(teachers, fileName = "staff-list") {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
   doc.setTextColor(30, 41, 59);
-  doc.text("DAYALBAGH EDUCATIONAL INSTITUTE", 105, 12, { align: "center" });
+  doc.text(header.institutionName, 105, 12, { align: "center" });
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   doc.setTextColor(100, 116, 139);
-  doc.text("ENGINEERING FACULTY - STAFF DIRECTORY", 105, 17, { align: "center" });
+  doc.text(`${header.facultyName} - STAFF DIRECTORY`, 105, 17, { align: "center" });
 
   doc.setDrawColor(226, 232, 240);
   doc.setLineWidth(0.5);
@@ -434,7 +437,8 @@ export function exportStaffListToPdf(teachers, fileName = "staff-list") {
 /**
  * Export a single teacher's weekly schedule as a single page A4 PDF grid
  */
-export function exportIndividualTeacherOccupancyToPdf(teacher, schedules, timeSlots, fileName = "teacher-schedule") {
+export function exportIndividualTeacherOccupancyToPdf(teacher, schedules, timeSlots, fileName = "teacher-schedule", exportHeader) {
+  const header = resolveExportHeader(exportHeader);
   const doc = new jsPDF({
     orientation: "landscape",
     unit: "mm",
@@ -448,12 +452,12 @@ export function exportIndividualTeacherOccupancyToPdf(teacher, schedules, timeSl
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
   doc.setTextColor(30, 41, 59);
-  doc.text("DAYALBAGH EDUCATIONAL INSTITUTE", 148, 12, { align: "center" });
+  doc.text(header.institutionName, 148, 12, { align: "center" });
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   doc.setTextColor(100, 116, 139);
-  doc.text("ENGINEERING FACULTY", 148, 17, { align: "center" });
+  doc.text(header.facultyName, 148, 17, { align: "center" });
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);

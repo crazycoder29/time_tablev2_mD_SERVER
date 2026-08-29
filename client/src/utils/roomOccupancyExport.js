@@ -5,6 +5,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
+import { resolveExportHeader } from "./exportHeaderHelper";
 
 const cleanTime = (t) => String(t || "").replace(/\s+/g, "").trim().toLowerCase();
 
@@ -159,7 +160,8 @@ function buildSingleDayRoomOccupancyGrid(day, rooms, schedules, timeSlots) {
 /**
  * Export room occupancy to PDF with all rooms organized by days (One page per day)
  */
-export function exportRoomOccupancyToPdf(rooms, schedules, timeSlots, fileName = "room-occupancy") {
+export function exportRoomOccupancyToPdf(rooms, schedules, timeSlots, fileName = "room-occupancy", exportHeader) {
+  const header = resolveExportHeader(exportHeader);
   const doc = new jsPDF({
     orientation: "landscape",
     unit: "mm",
@@ -188,12 +190,12 @@ export function exportRoomOccupancyToPdf(rooms, schedules, timeSlots, fileName =
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
     doc.setTextColor(30, 41, 59);
-    doc.text("DAYALBAGH EDUCATIONAL INSTITUTE", 297, 12, { align: "center" });
+    doc.text(header.institutionName, 297, 12, { align: "center" });
     
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
     doc.setTextColor(100, 116, 139);
-    doc.text("ENGINEERING FACULTY", 297, 17, { align: "center" });
+    doc.text(header.facultyName, 297, 17, { align: "center" });
     
     doc.setFont("helvetica", "bold");
     doc.setFontSize(13);
@@ -514,7 +516,8 @@ function buildMobileSingleDayRoomsOccupancyGrid(day, rooms, schedules, timeSlots
 /**
  * Export room occupancy to PDF in mobile-friendly format (Portrait A4 single sheet or Landscape A4 multi-page)
  */
-export function exportRoomOccupancyToPdfMobile(rooms, schedules, timeSlots, fileName = "room-occupancy-mobile", layout = "multi") {
+export function exportRoomOccupancyToPdfMobile(rooms, schedules, timeSlots, fileName = "room-occupancy-mobile", layout = "multi", exportHeader) {
+  const header = resolveExportHeader(exportHeader);
   const hasSunday = (schedules || []).some(s => String(s.day).trim().toLowerCase() === "sun");
   const days = [
     { key: "Mon", label: "MON", fullLabel: "MONDAY" },
@@ -608,12 +611,12 @@ export function exportRoomOccupancyToPdfMobile(rooms, schedules, timeSlots, file
 
       testDoc.setFont("helvetica", "bold");
       testDoc.setFontSize(11);
-      testDoc.text("DAYALBAGH EDUCATIONAL INSTITUTE", 105, 7.5, { align: "center" });
+      testDoc.text(header.institutionName, 105, 7.5, { align: "center" });
       
       testDoc.setFont("helvetica", "bold");
       testDoc.setFontSize(8);
       testDoc.setTextColor(100, 116, 139);
-      testDoc.text("ENGINEERING FACULTY", 105, 11, { align: "center" });
+      testDoc.text(header.facultyName, 105, 11, { align: "center" });
       
       testDoc.setFont("helvetica", "bold");
       testDoc.setFontSize(8.5);
@@ -778,12 +781,12 @@ export function exportRoomOccupancyToPdfMobile(rooms, schedules, timeSlots, file
       doc.setFont("helvetica", "bold");
       doc.setFontSize(12);
       doc.setTextColor(30, 41, 59);
-      doc.text("DAYALBAGH EDUCATIONAL INSTITUTE", 148, 10, { align: "center" });
+      doc.text(header.institutionName, 148, 10, { align: "center" });
       
       doc.setFont("helvetica", "bold");
       doc.setFontSize(9);
       doc.setTextColor(100, 116, 139);
-      doc.text("ENGINEERING FACULTY", 148, 14, { align: "center" });
+      doc.text(header.facultyName, 148, 14, { align: "center" });
       
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10);

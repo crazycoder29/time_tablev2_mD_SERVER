@@ -19,6 +19,7 @@ import * as XLSX from "xlsx";
 
 import { DEFAULT_DAYS, normalize, dataKey } from "./dataHelpers";
 import { getBatchCount } from "./timetableHelpers";
+import { resolveExportHeader } from "./exportHeaderHelper";
 
 function resolveTables({ tableId, batches, batchData, batchesByTable, batchDataByTable }) {
   if (batchesByTable && batchDataByTable) {
@@ -167,10 +168,29 @@ export function buildTimetableExportGrid({
   return { tableId: resolved.tableId, head, body };
 }
 
+function formatSemesterAsYear(sem) {
+  if (!sem) return "";
+  let s = String(sem).trim();
+  if (/^S(\d+)/i.test(s)) {
+    return s.replace(/^S(\d+)/i, "Y$1");
+  }
+  if (/^Sem\s*(\d+)/i.test(s)) {
+    return s.replace(/^Sem\s*(\d+)/i, "Y$1");
+  }
+  if (/^Semester\s*(\d+)/i.test(s)) {
+    return s.replace(/^Semester\s*(\d+)/i, "Y$1");
+  }
+  if (/^\d+$/.test(s)) {
+    return `Y${s}`;
+  }
+  return s.replace(/\bSemester\b/gi, "Year").replace(/\bSem\b/gi, "Y");
+}
+
 function buildPdfTitle(meta, tableId) {
   const cls = normalize(meta?.class);
   const br = normalize(meta?.branch);
-  const sem = normalize(meta?.semester);
+  const rawSem = normalize(meta?.semester);
+  const sem = formatSemesterAsYear(rawSem);
   const type = normalize(meta?.type);
 
   const parts = compactLines([
@@ -260,7 +280,9 @@ export function exportTimetableToPdf({
   batchData,
   batchesByTable,
   batchDataByTable,
+  exportHeader,
 }) {
+  const header = resolveExportHeader(exportHeader);
   const grid = buildTimetableExportGrid({
     tableId,
     days,
@@ -309,12 +331,12 @@ export function exportTimetableToPdf({
     testDoc.setFont("helvetica", "bold");
     testDoc.setFontSize(13);
     testDoc.setTextColor(30, 41, 59);
-    testDoc.text("DAYALBAGH EDUCATIONAL INSTITUTE", 841.89 / 2, 28, { align: "center" });
+    testDoc.text(header.institutionName, 841.89 / 2, 28, { align: "center" });
     
     testDoc.setFont("helvetica", "bold");
     testDoc.setFontSize(9.5);
     testDoc.setTextColor(100, 116, 139);
-    testDoc.text("ENGINEERING FACULTY", 841.89 / 2, 42, { align: "center" });
+    testDoc.text(header.facultyName, 841.89 / 2, 42, { align: "center" });
     
     testDoc.setFont("helvetica", "bold");
     testDoc.setFontSize(11);
@@ -473,9 +495,9 @@ export function exportTimetableToPdf({
 /**
  * Exports multiple tables into a single multi-page PDF.
  */
-export function exportTimetablesToPdf({ fileName, meta, tables }) {
+export function exportTimetablesToPdf({ fileName, meta, tables, exportHeader }) {
+  const header = resolveExportHeader(exportHeader);
   const safe = sanitizeFileBaseName(fileName || meta?.name || "timetable");
-
   const doc = new jsPDF({
     orientation: "landscape",
     unit: "pt",
@@ -495,12 +517,12 @@ export function exportTimetablesToPdf({ fileName, meta, tables }) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(13);
     doc.setTextColor(30, 41, 59);
-    doc.text("DAYALBAGH EDUCATIONAL INSTITUTE", 841.89 / 2, 28, { align: "center" });
+    doc.text(header.institutionName, 841.89 / 2, 28, { align: "center" });
     
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9.5);
     doc.setTextColor(100, 116, 139);
-    doc.text("ENGINEERING FACULTY", 841.89 / 2, 42, { align: "center" });
+    doc.text(header.facultyName, 841.89 / 2, 42, { align: "center" });
     
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
@@ -813,7 +835,8 @@ export function exportTimetablesToExcel({ fileName, meta, tables }) {
   XLSX.writeFile(wb, `${safe}.xlsx`);
 }
 
-function buildDocHtml({ meta, grids, tables }) {
+function buildDocHtml({ meta, grids, tables, exportHeader }) {
+  const header = resolveExportHeader(exportHeader);
   const escapeHtml = (s) =>
     String(s ?? "")
       .replace(/&/g, "&amp;")
@@ -868,7 +891,11 @@ function buildDocHtml({ meta, grids, tables }) {
     "<!doctype html>" +
     "<html><head><meta charset=\"utf-8\"/>" +
     `<title>${escapeHtml(mainTitle)}</title>` +
-    "</head><body>" +
+    "</head><body style=\"font-family: Arial, sans-serif;\">" +
+    `<div style=\"text-align: center; margin-bottom: 16px;\">` +
+    `<h1 style=\"margin: 0; font-size: 16pt; color: #1e293b;\">${escapeHtml(header.institutionName)}</h1>` +
+    `<h3 style=\"margin: 4px 0 0; font-size: 11pt; color: #64748b;\">${escapeHtml(header.facultyName)}</h3>` +
+    `</div>` +
     `<h2 style=\"margin: 0 0 8px;\">${escapeHtml(mainTitle)}</h2>` +
     (grids ?? []).map((g, i) => tableToHtml(g, i)).join("") +
     "</body></html>"
@@ -878,10 +905,10 @@ function buildDocHtml({ meta, grids, tables }) {
 /**
  * Exports one or more timetables to a DOC file (HTML-based .doc).
  */
-export function exportTimetablesToDoc({ fileName, meta, tables }) {
+export function exportTimetablesToDoc({ fileName, meta, tables, exportHeader }) {
   const safe = sanitizeFileBaseName(fileName || meta?.name || "timetable");
   const grids = (tables ?? []).map((t) => buildTimetableExportGrid(t));
-  const html = buildDocHtml({ meta, grids, tables });
+  const html = buildDocHtml({ meta, grids, tables, exportHeader });
   const blob = new Blob([html], { type: "application/msword" });
   saveBlobFile(blob, `${safe}.doc`);
 }

@@ -37,8 +37,9 @@ export function abbreviateText(text) {
     [/\bComputer Science\b/gi, "CS"],
 
     // Semesters
-    [/\bSemester\s*(\d+)\b/gi, "S$1"],
-    [/\bSem\s*(\d+)\b/gi, "S$1"],
+    [/\bSemester\s*(\d+)\b/gi, "Y$1"],
+    [/\bSem\s*(\d+)\b/gi, "Y$1"],
+    [/\bS(\d+)\b/gi, "Y$1"],
 
     // Batches
     [/\bBatch\s*([A-Z0-9]+)\b/gi, "$1"],
@@ -84,7 +85,7 @@ export function formatCellOccupancy(matches) {
   if (matches.length === 1) {
     const occ = matches[0];
     const classInfo = abbreviateText(
-      [occ.class, occ.branch, occ.semester ? `S${occ.semester}` : "", occ.type].filter(Boolean).join(" ")
+      [occ.class, occ.branch, occ.semester ? `Y${occ.semester}` : "", occ.type].filter(Boolean).join(" ")
     );
     const batchInfo = occ.batch ? `(${abbreviateText(occ.batch)})` : "";
     const courseCode = getCourseCodeOnly(occ);
@@ -102,7 +103,7 @@ export function formatCellOccupancy(matches) {
   // Multiple classes / batches in the same time slot -> Vertical Partitions (Side-by-side columns)
   const columns = matches.map((occ, idx) => {
     const classInfo = abbreviateText(
-      [occ.class, occ.branch, occ.semester ? `S${occ.semester}` : "", occ.type].filter(Boolean).join(" ")
+      [occ.class, occ.branch, occ.semester ? `Y${occ.semester}` : "", occ.type].filter(Boolean).join(" ")
     );
     const batchInfo = occ.batch ? `(${abbreviateText(occ.batch)})` : `(B${idx + 1})`;
 

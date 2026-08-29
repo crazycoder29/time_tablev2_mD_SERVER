@@ -45,3 +45,20 @@ export async function saveBranches(branches) {
 export async function getAllSettings() {
   return await apiFetch("/api/settings/all");
 }
+
+/**
+ * Get export document header settings (institution name, faculty name)
+ */
+export async function getExportHeader() {
+  return await apiFetch("/api/settings/export-header");
+}
+
+/**
+ * Save export document header settings
+ */
+export async function saveExportHeader({ institutionName, facultyName }) {
+  return await apiFetch("/api/settings/export-header", {
+    method: "POST",
+    body: JSON.stringify({ institutionName, facultyName }),
+  });
+}

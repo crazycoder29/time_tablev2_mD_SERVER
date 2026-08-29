@@ -5,6 +5,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
+import { resolveExportHeader } from "./exportHeaderHelper";
 
 const cleanTime = (t) => String(t || "").replace(/\s+/g, "").trim().toLowerCase();
 
@@ -215,7 +216,8 @@ function buildSingleDayClassOccupancyGrid(day, classes, schedules, timeSlots) {
 /**
  * Export class occupancy to PDF with all classes organized by days (One day per page, centered, equal margins)
  */
-export function exportClassOccupancyToPdf(classes, schedules, timeSlots, fileName = "class-occupancy", branchColors = {}) {
+export function exportClassOccupancyToPdf(classes, schedules, timeSlots, fileName = "class-occupancy", branchColors = {}, exportHeader) {
+  const header = resolveExportHeader(exportHeader);
   const doc = new jsPDF({
     orientation: "landscape",
     unit: "mm",
@@ -254,12 +256,12 @@ export function exportClassOccupancyToPdf(classes, schedules, timeSlots, fileNam
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
     doc.setTextColor(30, 41, 59);
-    doc.text("DAYALBAGH EDUCATIONAL INSTITUTE", 297, 12, { align: "center" });
+    doc.text(header.institutionName, 297, 12, { align: "center" });
     
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
     doc.setTextColor(100, 116, 139);
-    doc.text("ENGINEERING FACULTY", 297, 17, { align: "center" });
+    doc.text(header.facultyName, 297, 17, { align: "center" });
     
     doc.setFont("helvetica", "bold");
     doc.setFontSize(13);
@@ -707,7 +709,8 @@ function buildMobileSingleDayClassesOccupancyGrid(day, classes, schedules, timeS
 /**
  * Export class occupancy to PDF in mobile-friendly format (Portrait A4 single sheet or Landscape A4 multi-page)
  */
-export function exportClassOccupancyToPdfMobile(classes, schedules, timeSlots, fileName = "class-occupancy-mobile", branchColors = {}, layout = "multi") {
+export function exportClassOccupancyToPdfMobile(classes, schedules, timeSlots, fileName = "class-occupancy-mobile", branchColors = {}, layout = "multi", exportHeader) {
+  const header = resolveExportHeader(exportHeader);
   const hexToRgb = (hex) => {
     if (!hex || hex === '#FFFFFF') return [255, 255, 255];
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -821,12 +824,12 @@ export function exportClassOccupancyToPdfMobile(classes, schedules, timeSlots, f
 
       testDoc.setFont("helvetica", "bold");
       testDoc.setFontSize(11);
-      testDoc.text("DAYALBAGH EDUCATIONAL INSTITUTE", 105, 7.5, { align: "center" });
+      testDoc.text(header.institutionName, 105, 7.5, { align: "center" });
       
       testDoc.setFont("helvetica", "bold");
       testDoc.setFontSize(8);
       testDoc.setTextColor(100, 116, 139);
-      testDoc.text("ENGINEERING FACULTY", 105, 11, { align: "center" });
+      testDoc.text(header.facultyName, 105, 11, { align: "center" });
       
       testDoc.setFont("helvetica", "bold");
       testDoc.setFontSize(8.5);
@@ -1012,12 +1015,12 @@ export function exportClassOccupancyToPdfMobile(classes, schedules, timeSlots, f
       doc.setFont("helvetica", "bold");
       doc.setFontSize(12);
       doc.setTextColor(30, 41, 59);
-      doc.text("DAYALBAGH EDUCATIONAL INSTITUTE", 148, 10, { align: "center" });
+      doc.text(header.institutionName, 148, 10, { align: "center" });
       
       doc.setFont("helvetica", "bold");
       doc.setFontSize(9);
       doc.setTextColor(100, 116, 139);
-      doc.text("ENGINEERING FACULTY", 148, 14, { align: "center" });
+      doc.text(header.facultyName, 148, 14, { align: "center" });
       
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10);

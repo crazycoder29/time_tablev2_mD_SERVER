@@ -2,12 +2,13 @@ import React, { useState, useEffect } from "react";
 import { 
   Plus, X, Trash2, Save, Settings, BookOpen, GitBranch, Loader2, 
   Clock, Pencil, Calendar, ChevronDown, ChevronUp, Users, UserPlus, 
-  Key, Shield, Search, Check, AlertCircle, RefreshCw
+  Key, Shield, Search, Check, AlertCircle, RefreshCw, FileText, RotateCcw
 } from "lucide-react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { settingsService, timetableService, usersService } from "../firebase/services";
 import { useAuthStore } from "../store/authStore";
+import { DEFAULT_EXPORT_HEADER, setCachedExportHeader, getCachedExportHeader } from "../utils/exportHeaderHelper";
 
 const DEFAULT_TIME_SLOTS = [
   "7:00 AM - 7:55 AM", "7:55 AM - 8:50 AM", "8:50 AM - 9:45 AM",
@@ -68,6 +69,12 @@ const AdminSettings = () => {
   const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Export Header Config State
+  const [exportHeader, setExportHeader] = useState(getCachedExportHeader());
+  const [exportHeaderSaving, setExportHeaderSaving] = useState(false);
+  const [exportHeaderSuccess, setExportHeaderSuccess] = useState(false);
+  const [exportHeaderError, setExportHeaderError] = useState("");
 
   // Timetable Presets
   const [presets, setPresets] = useState([]);
@@ -348,21 +355,63 @@ const AdminSettings = () => {
     }
   };
 
-  // ── Programs & Branches Actions ──────────────────────────────────────────
+  // ── Programs, Branches & Export Header Actions ─────────────────────────
   const loadSettings = async () => {
     try {
       setLoading(true);
-      const [programsData, branchesData] = await Promise.all([
+      const [programsData, branchesData, headerData] = await Promise.all([
         settingsService.getPrograms(),
         settingsService.getBranches(),
+        settingsService.getExportHeader().catch(() => null),
       ]);
-      setPrograms(programsData);
-      setBranches(branchesData);
+      setPrograms(programsData || []);
+      setBranches(branchesData || []);
+      if (headerData) {
+        setExportHeader(headerData);
+        setCachedExportHeader(headerData);
+      }
     } catch (error) {
       console.error("Error loading settings:", error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSaveExportHeader = async (e) => {
+    if (e) e.preventDefault();
+    setExportHeaderError("");
+    setExportHeaderSuccess(false);
+
+    const inst = exportHeader.institutionName?.trim();
+    const fac = exportHeader.facultyName?.trim();
+
+    if (!inst || !fac) {
+      setExportHeaderError("Both Institution Name and Faculty / Sub-Header fields are required.");
+      return;
+    }
+
+    try {
+      setExportHeaderSaving(true);
+      const saved = await settingsService.saveExportHeader({
+        institutionName: inst,
+        facultyName: fac,
+      });
+      const resolved = saved || { institutionName: inst, facultyName: fac };
+      setCachedExportHeader(resolved);
+      setExportHeader(resolved);
+      setExportHeaderSuccess(true);
+      setTimeout(() => setExportHeaderSuccess(false), 4000);
+    } catch (err) {
+      console.error("Error saving export header:", err);
+      setExportHeaderError(err.message || "Failed to save export header settings.");
+    } finally {
+      setExportHeaderSaving(false);
+    }
+  };
+
+  const handleResetExportHeader = () => {
+    setExportHeader({ ...DEFAULT_EXPORT_HEADER });
+    setExportHeaderError("");
   };
 
   const handleAddProgram = async () => {
@@ -669,8 +718,124 @@ const AdminSettings = () => {
         {/* ── SYSTEM CONFIGURATION TAB ───────────────────────────────────── */}
         {activeTab === "settings" && (
           <div className="space-y-6">
+            {/* Export Document Headers Section */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-gray-100 pb-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-indigo-600" />
+                    <h2 className="text-xl font-semibold text-gray-900">Export Document Headers</h2>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Customize the branding headers printed at the top of all exported PDF, Excel, and Word reports.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleResetExportHeader}
+                    disabled={exportHeaderSaving}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
+                    title="Reset fields to default institute and faculty"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Reset Defaults
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveExportHeader}
+                    disabled={exportHeaderSaving}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+                  >
+                    {exportHeaderSaving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : exportHeaderSuccess ? (
+                      <>
+                        <Check className="w-4 h-4 text-emerald-300" />
+                        Saved!
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        Save Header Settings
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {exportHeaderError && (
+                <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm border border-red-200 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{exportHeaderError}</span>
+                </div>
+              )}
+
+              {exportHeaderSuccess && (
+                <div className="mb-4 p-3 bg-emerald-50 text-emerald-700 rounded-lg text-sm border border-emerald-200 flex items-center gap-2">
+                  <Check className="w-4 h-4 flex-shrink-0" />
+                  <span>Export document header settings have been successfully saved and applied!</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                      Institution / University Name (Header Line 1) *
+                    </label>
+                    <input
+                      type="text"
+                      value={exportHeader.institutionName}
+                      onChange={(e) => setExportHeader({ ...exportHeader, institutionName: e.target.value })}
+                      placeholder="e.g. DAYALBAGH EDUCATIONAL INSTITUTE"
+                      className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
+                    <p className="text-[11px] text-gray-400 mt-1">Default: DAYALBAGH EDUCATIONAL INSTITUTE</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                      Faculty / Department / Sub-Header (Header Line 2) *
+                    </label>
+                    <input
+                      type="text"
+                      value={exportHeader.facultyName}
+                      onChange={(e) => setExportHeader({ ...exportHeader, facultyName: e.target.value })}
+                      placeholder="e.g. ENGINEERING FACULTY"
+                      className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
+                    <p className="text-[11px] text-gray-400 mt-1">Default: ENGINEERING FACULTY</p>
+                  </div>
+                </div>
+
+                {/* Live Header Preview */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 flex flex-col justify-center">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-3 block">
+                    Live Export Document Header Preview
+                  </span>
+                  <div className="bg-white border border-slate-200 rounded-lg p-5 shadow-sm text-center">
+                    <h3 className="font-bold text-slate-900 text-sm tracking-wide">
+                      {exportHeader.institutionName || "INSTITUTION NAME"}
+                    </h3>
+                    <p className="font-semibold text-slate-500 text-xs mt-1 tracking-wider uppercase">
+                      {exportHeader.facultyName || "FACULTY NAME"}
+                    </p>
+                    <div className="border-b border-slate-300 my-2.5 w-full"></div>
+                    <p className="text-[10px] text-slate-400 italic">
+                      [ Report Title & Timetable Table Content ]
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Programs Section */}
+
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-2">
